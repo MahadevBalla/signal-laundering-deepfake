@@ -1,7 +1,15 @@
+# data
 data/*
 !data/.gitkeep
+
+# outputs
+outputs/
+
+# environments
 .venv/
 __pycache__/
 *.pyc
 *.pth
+
+# local freeze file
 req.txt
