@@ -1,0 +1,3 @@
+[submodule "external/aasist"]
+	path = external/aasist
+	url = https://github.com/MahadevBalla/aasist
