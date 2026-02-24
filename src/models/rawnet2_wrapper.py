@@ -7,10 +7,10 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
-_AASIST_ROOT = os.path.abspath(
+_RawNet2_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../external/aasist")
 )
-sys.path.insert(0, _AASIST_ROOT)
+sys.path.insert(0, _RawNet2_ROOT)
 
 # from evaluation import calculate_tDCF_EER
 from main import get_loader, get_model
@@ -18,7 +18,7 @@ from main import get_loader, get_model
 from src.evaluation.metrics import evaluate_scores
 
 
-class AASISTWrapper:
+class RawNet2Wrapper:
     def __init__(self, config_path: str, data_root: str):
         with open(config_path) as f:
             self.config = json.load(f)
@@ -32,11 +32,11 @@ class AASISTWrapper:
             torch.load(path, map_location=self.device, weights_only=True)
         )
         self.model.eval()
-        print(f"[AASIST] Loaded: {path}")
+        print(f"[RawNet2] Loaded: {path}")
 
     def evaluate(self, output_dir: str = "outputs", launder_fn=None) -> tuple[float, float]:
         start = time.time()
-        print(f"[AASIST] Device: {self.device}")
+        print(f"[RawNet2] Device: {self.device}")
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -51,7 +51,7 @@ class AASISTWrapper:
         eval_score_path = output_dir / "eval_scores.txt"
 
         _, _, eval_loader = get_loader(database_path, seed=1234, config=self.config)
-        print(f"[AASIST] Eval batches: {len(eval_loader)}")
+        print(f"[RawNet2] Eval batches: {len(eval_loader)}")
 
         self.model.eval()
         with open(eval_trial_path) as f:
@@ -78,14 +78,14 @@ class AASISTWrapper:
                 assert fn == utt_id, f"ID mismatch: {fn} vs {utt_id}"
                 fh.write(f"{utt_id} {src} {key} {sco}\n")
 
-        print(f"[AASIST] Scores saved → {eval_score_path}")
+        print(f"[RawNet2] Scores saved → {eval_score_path}")
 
         asv_score_file = database_path / self.config["asv_score_path"]
 
-        # Primary metrics via our metrics module (matches AASIST eval.py exactly)
+        # Primary metrics via our metrics module
         result = evaluate_scores(eval_score_path, asv_score_file)
         self._last_eval_result = result   # stash for caller if needed
 
-        print(f"[AASIST] EER: {result.eer:.4f}% | min-tDCF: {result.min_tdcf:.4f}")
-        print(f"[AASIST] Eval time: {(time.time() - start) / 60:.2f} min")
+        print(f"[RawNet2] EER: {result.eer:.4f}% | min-tDCF: {result.min_tdcf:.4f}")
+        print(f"[RawNet2] Eval time: {(time.time() - start) / 60:.2f} min")
         return result.eer, result.min_tdcf

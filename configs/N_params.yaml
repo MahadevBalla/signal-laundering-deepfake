@@ -1,0 +1,25 @@
+# Pipeline N - Network / Communication
+noise_dir: null  # set to SPIB/QUT noise dir; null = white noise fallback
+
+stages:
+  N1:
+    codec: libopus
+    bitrates:        # bps - VoIP range per Opus spec
+      L: 32000
+      M: 24000
+      H: 12000
+
+  N2:
+    frame_ms: 20     # standard VoIP frame size
+    plr:             # packet loss rate (fraction)
+      L: 0.01
+      M: 0.05
+      H: 0.10
+    lp_cutoff_hz: 3400  # fixed Butterworth LP - narrowband telephony cutoff
+    lp_order: 6
+
+  N3:
+    snr_db:          # additive noise SNR
+      L: 20
+      M: 10
+      H: 0

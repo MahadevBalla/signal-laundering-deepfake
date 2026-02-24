@@ -1,3 +1,6 @@
 [submodule "external/aasist"]
 	path = external/aasist
 	url = https://github.com/MahadevBalla/aasist
+[submodule "external/asvspoof2021"]
+	path = external/asvspoof2021
+	url = https://github.com/MahadevBalla/asvspoof2021

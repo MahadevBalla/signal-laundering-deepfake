@@ -1,0 +1,24 @@
+# Pipeline P - Physical / Replay
+noise_dir: null  # set to SPIB/QUT noise dir; null = white noise fallback
+
+stages:
+  P1:
+    # Loudspeaker bandpass - fixed for all strengths
+    bp_low_hz: 150
+    bp_high_hz: 8000
+    bp_order: 4
+
+  P2:
+    rt60:            # seconds - Image Source Method via pyroomacoustics
+      L: 0.3
+      M: 0.6
+      H: 0.9
+
+  P3:
+    # Microphone highpass - fixed for all strengths (smartphone bass roll-off)
+    hp_cutoff_hz: 80
+    hp_order: 2
+    snr_db:
+      L: 20
+      M: 10
+      H: 0

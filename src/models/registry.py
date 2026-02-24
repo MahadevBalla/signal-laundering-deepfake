@@ -1,8 +1,10 @@
 from .aasist_wrapper import AASISTWrapper
+from .rawnet2_wrapper import RawNet2Wrapper
 
 MODEL_REGISTRY = {
     "aasist": AASISTWrapper,
     "aasist-l": AASISTWrapper,
+    "rawnet2": RawNet2Wrapper,
 }
 
 

@@ -1,0 +1,22 @@
+# Pipeline M - Media / Platform Compression
+stages:
+  M1:
+    codec: libmp3lame
+    bitrates:        # bps
+      L: 48000
+      M: 32000
+      H: 16000
+
+  M2:
+    codec: aac
+    bitrates:
+      L: 48000
+      M: 32000
+      H: 16000
+
+  M3:
+    codec: libopus
+    bitrates:
+      L: 48000
+      M: 32000
+      H: 16000
