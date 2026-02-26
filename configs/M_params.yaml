@@ -2,7 +2,7 @@
 stages:
   M1:
     codec: libmp3lame
-    bitrates:        # bps
+    bitrate:        # bps
       L: 48000
       M: 32000
       H: 16000
@@ -16,7 +16,7 @@ stages:
 
   M3:
     codec: libopus
-    bitrates:
+    bitrate:
       L: 48000
       M: 32000
       H: 16000
