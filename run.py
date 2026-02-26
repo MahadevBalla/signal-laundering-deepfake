@@ -9,6 +9,7 @@ from src.models.registry import get_model
 CONFIGS = {
     "aasist": "external/aasist/config/AASIST.conf",
     "aasist-l": "external/aasist/config/AASIST-L.conf",
+    "rawnet2": "external/aasist/config/RawNet2_baseline.conf",
 }
 
 WEIGHTS = {
@@ -45,34 +46,39 @@ def main():
     )
     outdir.mkdir(parents=True, exist_ok=True)
 
+    # Init model
     model = get_model(
         args.model,
         config_path=CONFIGS[args.model],
         data_root=args.data_root,
     )
+    model.load_weights(WEIGHTS[args.model])
 
+    # Laundering engine
     engine = LaunderingEngine(args.config_dir)
-    launder_fn = engine.get_batch_fn(args.pipeline or "N", args.depth, args.strength)
+    launder_fn = (
+        engine.get_batch_fn(args.pipeline or "N", args.depth, args.strength)
+        if args.depth > 0
+        else None
+    )
+
+    # Evaluate
     eer, tdcf = model.evaluate(output_dir=str(outdir), launder_fn=launder_fn)
 
-    if args.depth == 0 or args.pipeline is None:
-        model.load_weights(WEIGHTS[args.model])
-
-        eer, tdcf = model.evaluate(output_dir=str(outdir))
-
-        write_csv(
-            [
-                {
-                    "model": args.model,
-                    "pipeline": args.pipeline or "clean",
-                    "depth": args.depth,
-                    "strength": args.strength if args.depth > 0 else "-",
-                    "eer": eer,
-                    "tdcf": tdcf,
-                }
-            ],
-            str(outdir),
-        )
+    # Save results
+    write_csv(
+        [
+            {
+                "model": args.model,
+                "pipeline": args.pipeline or "clean",
+                "depth": args.depth,
+                "strength": args.strength if args.depth > 0 else "-",
+                "eer": eer,
+                "tdcf": tdcf,
+            }
+        ],
+        str(outdir),
+    )
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ noise_dir: null  # set to SPIB/QUT noise dir; null = white noise fallback
 stages:
   N1:
     codec: libopus
-    bitrates:        # bps - VoIP range per Opus spec
+    bitrate:        # bps - VoIP range per Opus spec
       L: 32000
       M: 24000
       H: 12000
