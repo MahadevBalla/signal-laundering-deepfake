@@ -7,7 +7,7 @@ def write_csv(all_results: list[dict], output_dir: str):
     all_results: list of dicts with keys:
       model, pipeline, depth, strength, eer, tdcf
     """
-    out = Path(output_dir) / "phase1_results.csv"
+    out = Path(output_dir) / "results.csv"
     fieldnames = ["model", "pipeline", "depth", "strength", "eer", "tdcf"]
 
     with open(out, "w", newline="") as f:

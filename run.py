@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from src.evaluation.plots import plot_aurc_comparison, plot_collapse_curves
+from src.evaluation.plots import plot_det_curve, plot_per_attack_eer
 from src.evaluation.results_writer import write_csv
 from src.laundering import LaunderingEngine
 from src.models.registry import get_model
@@ -64,6 +64,25 @@ def main():
 
     # Evaluate
     eer, tdcf = model.evaluate(output_dir=str(outdir), launder_fn=launder_fn)
+    result = model._last_eval_result
+    if args.depth == 0:
+        label = "clean"
+    else:
+        label = f"{args.pipeline}_k{args.depth}_{args.strength}"
+
+    plot_det_curve(
+        {label: result},
+        str(outdir),
+        args.model,
+        condition_label=label,
+    )
+
+    plot_per_attack_eer(
+        result.eer_per_attack,
+        str(outdir),
+        args.model,
+        condition_label=label,
+    )
 
     # Save results
     write_csv(
