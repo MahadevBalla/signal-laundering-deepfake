@@ -1,0 +1,444 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\WINDOWS\system32> cd "C:\Users\Naimish Shah\Desktop\signal-laundering-deepfake\external\aasist"
+PS C:\Users\Naimish Shah\Desktop\signal-laundering-deepfake\external\aasist> cd ..
+PS C:\Users\Naimish Shah\Desktop\signal-laundering-deepfake\external> cd ..
+PS C:\Users\Naimish Shah\Desktop\signal-laundering-deepfake> .\venv\Scripts\Activate.ps1
+(venv) PS C:\Users\Naimish Shah\Desktop\signal-laundering-deepfake> cd "C:\Users\Naimish Shah\Desktop\signal-laundering-deepfake\external\aasist"
+(venv) PS C:\Users\Naimish Shah\Desktop\signal-laundering-deepfake\external\aasist> python main.py --config ./config/RawNet2_baseline.conf
+Device: cuda
+no. model params:17621410
+no. training files: 25380
+no. validation files: 24844
+Start training epoch000
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.44912, dev_eer: 16.605, dev_tdcf:0.45210
+Start training epoch001
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.23783, dev_eer: 8.156, dev_tdcf:0.23148
+Start training epoch002
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.12203, dev_eer: 7.341, dev_tdcf:0.21658
+Start training epoch003
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.07507, dev_eer: 9.262, dev_tdcf:0.27899
+Start training epoch004
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.05914, dev_eer: 5.023, dev_tdcf:0.15907
+Start training epoch005
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.05841, dev_eer: 3.807, dev_tdcf:0.11679
+Start training epoch006
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.04535, dev_eer: 3.299, dev_tdcf:0.10601
+Start training epoch007
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.03537, dev_eer: 4.820, dev_tdcf:0.15551
+Start training epoch008
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.04134, dev_eer: 2.111, dev_tdcf:0.06576
+Start training epoch009
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.03303, dev_eer: 4.789, dev_tdcf:0.15434
+Start training epoch010
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.02916, dev_eer: 1.687, dev_tdcf:0.05670
+Start training epoch011
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.03105, dev_eer: 2.085, dev_tdcf:0.06362
+Start training epoch012
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.02713, dev_eer: 1.649, dev_tdcf:0.04347
+Start training epoch013
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.02409, dev_eer: 1.453, dev_tdcf:0.04212
+Start training epoch014
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.02258, dev_eer: 2.116, dev_tdcf:0.04880
+Start training epoch015
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.02584, dev_eer: 1.291, dev_tdcf:0.03925
+Start training epoch016
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01981, dev_eer: 1.727, dev_tdcf:0.04926
+Start training epoch017
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.02420, dev_eer: 2.118, dev_tdcf:0.06836
+Start training epoch018
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.02317, dev_eer: 1.687, dev_tdcf:0.05084
+Start training epoch019
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01552, dev_eer: 1.806, dev_tdcf:0.05683
+Start training epoch020
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01562, dev_eer: 1.170, dev_tdcf:0.03900
+Start training epoch021
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01573, dev_eer: 0.745, dev_tdcf:0.02453
+best model find at epoch 21
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\eval_scores_using_best_dev_model.txt
+'cat' is not recognized as an internal or external command,
+operable program or batch file.
+epoch021, best eer, 5.9142%best tdcf, 0.1446
+Saving epoch 21 for swa
+Start training epoch022
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01220, dev_eer: 1.453, dev_tdcf:0.04780
+Start training epoch023
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01280, dev_eer: 1.296, dev_tdcf:0.04358
+Start training epoch024
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01225, dev_eer: 1.059, dev_tdcf:0.02726
+Start training epoch025
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01110, dev_eer: 1.413, dev_tdcf:0.04059
+Start training epoch026
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01358, dev_eer: 1.335, dev_tdcf:0.04315
+Start training epoch027
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01008, dev_eer: 0.902, dev_tdcf:0.02663
+Start training epoch028
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01249, dev_eer: 1.139, dev_tdcf:0.03620
+Start training epoch029
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01128, dev_eer: 1.727, dev_tdcf:0.05165
+Start training epoch030
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01147, dev_eer: 1.022, dev_tdcf:0.02802
+Start training epoch031
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00592, dev_eer: 0.825, dev_tdcf:0.02492
+Start training epoch032
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01515, dev_eer: 0.659, dev_tdcf:0.02147
+best model find at epoch 32
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\eval_scores_using_best_dev_model.txt
+'cat' is not recognized as an internal or external command,
+operable program or batch file.
+epoch032, best eer, 5.6167%best tdcf, 0.1332
+Saving epoch 32 for swa
+Start training epoch033
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00678, dev_eer: 0.865, dev_tdcf:0.02570
+Start training epoch034
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00819, dev_eer: 1.565, dev_tdcf:0.04936
+Start training epoch035
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00765, dev_eer: 0.904, dev_tdcf:0.02884
+Start training epoch036
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.01032, dev_eer: 1.296, dev_tdcf:0.04322
+Start training epoch037
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00823, dev_eer: 1.068, dev_tdcf:0.03477
+Start training epoch038
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00657, dev_eer: 1.530, dev_tdcf:0.05103
+Start training epoch039
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00954, dev_eer: 1.059, dev_tdcf:0.03304
+Start training epoch040
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00408, dev_eer: 1.415, dev_tdcf:0.04418
+Start training epoch041
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00581, dev_eer: 1.727, dev_tdcf:0.05770
+Start training epoch042
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00555, dev_eer: 1.727, dev_tdcf:0.05624
+Start training epoch043
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00448, dev_eer: 1.933, dev_tdcf:0.06247
+Start training epoch044
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00224, dev_eer: 0.942, dev_tdcf:0.02890
+Start training epoch045
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00738, dev_eer: 1.453, dev_tdcf:0.04730
+Start training epoch046
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00358, dev_eer: 1.453, dev_tdcf:0.04870
+Start training epoch047
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00426, dev_eer: 1.296, dev_tdcf:0.03939
+Start training epoch048
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00561, dev_eer: 1.296, dev_tdcf:0.04326
+Start training epoch049
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00250, dev_eer: 1.249, dev_tdcf:0.04081
+Start training epoch050
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00299, dev_eer: 1.099, dev_tdcf:0.03428
+Start training epoch051
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00461, dev_eer: 0.745, dev_tdcf:0.02066
+Start training epoch052
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00387, dev_eer: 0.708, dev_tdcf:0.02273
+Start training epoch053
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00383, dev_eer: 1.092, dev_tdcf:0.03360
+Start training epoch054
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00243, dev_eer: 1.645, dev_tdcf:0.05179
+Start training epoch055
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00395, dev_eer: 1.727, dev_tdcf:0.05385
+Start training epoch056
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00192, dev_eer: 0.745, dev_tdcf:0.02502
+Start training epoch057
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00454, dev_eer: 1.369, dev_tdcf:0.04458
+Start training epoch058
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00267, dev_eer: 0.988, dev_tdcf:0.03202
+Start training epoch059
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00276, dev_eer: 0.597, dev_tdcf:0.02022
+best model find at epoch 59
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\eval_scores_using_best_dev_model.txt
+'cat' is not recognized as an internal or external command,
+operable program or batch file.
+epoch059, best eer, 4.7326%best tdcf, 0.1120
+Saving epoch 59 for swa
+Start training epoch060
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00168, dev_eer: 1.139, dev_tdcf:0.03869
+Start training epoch061
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00253, dev_eer: 1.577, dev_tdcf:0.05198
+Start training epoch062
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00147, dev_eer: 1.022, dev_tdcf:0.03112
+Start training epoch063
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00225, dev_eer: 1.497, dev_tdcf:0.05091
+Start training epoch064
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00135, dev_eer: 1.563, dev_tdcf:0.04986
+Start training epoch065
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00445, dev_eer: 0.902, dev_tdcf:0.02587
+Start training epoch066
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00155, dev_eer: 0.935, dev_tdcf:0.02762
+Start training epoch067
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00180, dev_eer: 0.672, dev_tdcf:0.02242
+Start training epoch068
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00183, dev_eer: 0.789, dev_tdcf:0.02525
+Start training epoch069
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00089, dev_eer: 1.134, dev_tdcf:0.03518
+Start training epoch070
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00156, dev_eer: 1.130, dev_tdcf:0.03436
+Start training epoch071
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00136, dev_eer: 0.865, dev_tdcf:0.02578
+Start training epoch072
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00127, dev_eer: 1.216, dev_tdcf:0.03552
+Start training epoch073
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00243, dev_eer: 1.059, dev_tdcf:0.03494
+Start training epoch074
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00068, dev_eer: 1.057, dev_tdcf:0.03401
+Start training epoch075
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00135, dev_eer: 0.867, dev_tdcf:0.02871
+Start training epoch076
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00057, dev_eer: 1.022, dev_tdcf:0.03274
+Start training epoch077
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00111, dev_eer: 0.785, dev_tdcf:0.02565
+Start training epoch078
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00022, dev_eer: 1.024, dev_tdcf:0.03397
+Start training epoch079
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00178, dev_eer: 0.977, dev_tdcf:0.02996
+Start training epoch080
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00034, dev_eer: 0.708, dev_tdcf:0.02237
+Start training epoch081
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00101, dev_eer: 0.708, dev_tdcf:0.02242
+Start training epoch082
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00080, dev_eer: 0.511, dev_tdcf:0.01540
+best model find at epoch 82
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\eval_scores_using_best_dev_model.txt
+'cat' is not recognized as an internal or external command,
+operable program or batch file.
+epoch082, best eer, 4.4158%
+Saving epoch 82 for swa
+Start training epoch083
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00100, dev_eer: 0.982, dev_tdcf:0.03162
+Start training epoch084
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00063, dev_eer: 0.668, dev_tdcf:0.01966
+Start training epoch085
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00042, dev_eer: 0.708, dev_tdcf:0.02273
+Start training epoch086
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00066, dev_eer: 0.825, dev_tdcf:0.02286
+Start training epoch087
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00082, dev_eer: 0.982, dev_tdcf:0.03098
+Start training epoch088
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00043, dev_eer: 0.787, dev_tdcf:0.02417
+Start training epoch089
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00105, dev_eer: 0.705, dev_tdcf:0.01787
+Start training epoch090
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00072, dev_eer: 0.708, dev_tdcf:0.01877
+Start training epoch091
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00040, dev_eer: 0.745, dev_tdcf:0.02205
+Start training epoch092
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00051, dev_eer: 0.745, dev_tdcf:0.02511
+Start training epoch093
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00070, dev_eer: 0.785, dev_tdcf:0.02470
+Start training epoch094
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00034, dev_eer: 0.909, dev_tdcf:0.02709
+Start training epoch095
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00053, dev_eer: 0.867, dev_tdcf:0.02763
+Start training epoch096
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00044, dev_eer: 0.825, dev_tdcf:0.02777
+Start training epoch097
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00023, dev_eer: 0.825, dev_tdcf:0.02628
+Start training epoch098
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00068, dev_eer: 0.982, dev_tdcf:0.03045
+Start training epoch099
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\metrics\dev_score.txt
+DONE.
+Loss:0.00014, dev_eer: 0.825, dev_tdcf:0.02736
+Start final evaluation
+Scores saved to exp_result\LA_RawNet2_baseline_ep100_bs32\eval_scores_using_best_dev_model.txt
+'cat' is not recognized as an internal or external command,
+operable program or batch file.
+Exp FIN. EER: 4.416, min t-DCF: 0.11197
