@@ -200,3 +200,47 @@ def plot_per_attack_eer(
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[plots] Saved → {out}")
+
+
+def plot_cka_heatmap(
+    cka_data: dict[int, dict[int, float]],
+    output_dir: str,
+    model_name: str,
+    pipeline: str,
+    strength: str,
+):
+    """
+    Heatmap: X-axis = layer (0–11), Y-axis = depth (1–3), color = CKA score.
+    Higher CKA = representation survived laundering.
+    Lower CKA = representation collapsed.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    depths = sorted(cka_data.keys())
+    layers = sorted(cka_data[depths[0]].keys())
+
+    matrix = np.array([
+        [cka_data[d][l] for l in layers]
+        for d in depths
+    ])  # [num_depths, num_layers]
+
+    fig, ax = plt.subplots(figsize=(14, 4))
+    im = ax.imshow(matrix, aspect="auto", cmap="RdYlGn",
+                   vmin=0.0, vmax=1.0, origin="upper")
+
+    ax.set_xticks(range(len(layers)))
+    ax.set_xticklabels([f"L{l}" for l in layers])
+    ax.set_yticks(range(len(depths)))
+    ax.set_yticklabels([f"k={d}" for d in depths])
+    ax.set_xlabel("Transformer Layer")
+    ax.set_ylabel("Laundering Depth")
+    ax.set_title(f"CKA Stability — {model_name.upper()} | Pipeline {pipeline} | Strength {strength}")
+
+    plt.colorbar(im, ax=ax, label="CKA Score (1=identical, 0=collapsed)")
+    plt.tight_layout()
+
+    out_path = Path(output_dir) / f"cka_heatmap_{model_name}_{pipeline}_{strength}.png"
+    plt.savefig(str(out_path), dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"[PLOT] CKA heatmap → {out_path}")

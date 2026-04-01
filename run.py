@@ -9,12 +9,18 @@ from src.models.registry import get_model
 CONFIGS = {
     "aasist": "external/aasist/config/AASIST.conf",
     "aasist-l": "external/aasist/config/AASIST-L.conf",
+    "wav2vec2": "configs/wav2vec2_probe.yaml",
+    "hubert":   "configs/hubert_probe.yaml",
+    "wavlm":    "configs/wavlm_probe.yaml",
 }
 
 WEIGHTS = {
     "aasist": "external/aasist/models/weights/AASIST.pth",
     "aasist-l": "external/aasist/models/weights/AASIST-L.pth",
     "rawnet2": "external/aasist/models/weights/RawNet2.pth",
+    "wav2vec2": "models/wav2vec2_probe_layer11.pth",   # doesn't need to exist yet
+    "hubert":   "models/hubert_probe_layer11.pth",
+    "wavlm":    "models/wavlm_probe_layer11.pth",
 }
 
 

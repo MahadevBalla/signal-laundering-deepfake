@@ -35,7 +35,7 @@ class LaunderingEngine:
             return None
 
         def _launder(batch: torch.Tensor) -> torch.Tensor:
-            arr = batch.numpy()
+            arr = batch.cpu().numpy()
             out = np.stack(
                 [
                     self.apply_sample(arr[i], SR, pipeline, depth, strength)

@@ -4,3 +4,5 @@ soundfile==0.13.*
 tensorboard==2.20.*
 torchcontrib==0.0.2
 tqdm==4.67.*
+transformers>=4.38.0
+soundfile
