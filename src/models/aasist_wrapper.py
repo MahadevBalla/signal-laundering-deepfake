@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import torch
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 _AASIST_ROOT = os.path.abspath(
@@ -34,15 +35,22 @@ class AASISTWrapper:
         self.model.eval()
         print(f"[AASIST] Loaded: {path}")
 
-    def evaluate(self, output_dir: str = "outputs", launder_fn=None) -> tuple[float, float]:
+    def evaluate(
+        self,
+        output_dir: str = "outputs",
+        launder_fn=None,
+        max_eval: int | None = 500,
+    ) -> tuple[float, float]:
+
         start = time.time()
         print(f"[AASIST] Device: {self.device}")
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        database_path  = Path(self.config["database_path"])
-        track          = self.config["track"]
-        prefix         = f"ASVspoof2019.{track}"
+        database_path = Path(self.config["database_path"])
+        track = self.config["track"]
+        prefix = f"ASVspoof2019.{track}"
+
         eval_trial_path = (
             database_path
             / f"ASVspoof2019_{track}_cm_protocols"
@@ -50,14 +58,32 @@ class AASISTWrapper:
         )
         eval_score_path = output_dir / "eval_scores.txt"
 
+        # Loader
         _, _, eval_loader = get_loader(database_path, seed=1234, config=self.config)
+        dataset = eval_loader.dataset
+        if max_eval is not None:
+            dataset.list_IDs = dataset.list_IDs[:max_eval]
+
+            eval_loader = DataLoader(
+                dataset,
+                batch_size=eval_loader.batch_size,
+                shuffle=False,
+                num_workers=eval_loader.num_workers,
+            )
         print(f"[AASIST] Eval batches: {len(eval_loader)}")
 
-        self.model.eval()
+        # Load & filter protocol
         with open(eval_trial_path) as f:
             trial_lines = f.readlines()
 
+        id_set = set(dataset.list_IDs)
+        trial_lines = [
+            line for line in trial_lines if line.strip().split()[1] in id_set
+        ]
+
+        # Scoring
         fname_list, score_list = [], []
+        self.model.eval()
         with torch.no_grad():
             for batch_x, utt_ids in tqdm(eval_loader, desc="Scoring", unit="batch"):
                 if launder_fn is not None:
@@ -72,6 +98,10 @@ class AASISTWrapper:
             f"Mismatch: {len(trial_lines)} trials vs {len(fname_list)} scored"
         )
 
+        print("Trials used:", len(trial_lines))
+        print("Scores produced:", len(score_list))
+
+        # Write score file
         with open(eval_score_path, "w") as fh:
             for fn, sco, trl in zip(fname_list, score_list, trial_lines):
                 _, utt_id, _, src, key = trl.strip().split()
@@ -80,11 +110,10 @@ class AASISTWrapper:
 
         print(f"[AASIST] Scores saved → {eval_score_path}")
 
+        # Metrics
         asv_score_file = database_path / self.config["asv_score_path"]
-
-        # Primary metrics via our metrics module (matches AASIST eval.py exactly)
         result = evaluate_scores(eval_score_path, asv_score_file)
-        self._last_eval_result = result   # stash for caller if needed
+        self._last_eval_result = result
 
         print(f"[AASIST] EER: {result.eer:.4f}% | min-tDCF: {result.min_tdcf:.4f}")
         print(f"[AASIST] Eval time: {(time.time() - start) / 60:.2f} min")

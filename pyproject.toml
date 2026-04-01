@@ -15,4 +15,5 @@ dependencies = [
     "tensorboard==2.20.*",
     "torchcontrib==0.0.2",
     "tqdm==4.67.*",
+    "pyyaml==6.0.*",
 ]
