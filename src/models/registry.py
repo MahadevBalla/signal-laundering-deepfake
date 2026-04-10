@@ -1,14 +1,16 @@
 from .aasist_wrapper import AASISTWrapper
 from .rawnet2_wrapper import RawNet2Wrapper
-from .ssl_probe_wrapper import SSLProbeWrapper  
+from .rawnet2_wrapper import HuBERTRawNet2Wrapper, RawNet2Wrapper
+from .ssl_probe_wrapper import SSLProbeWrapper
 
 MODEL_REGISTRY = {
     "aasist": AASISTWrapper,
     "aasist-l": AASISTWrapper,
     "rawnet2": RawNet2Wrapper,
-    "wav2vec2":  SSLProbeWrapper,   # ADD
-    "hubert":    SSLProbeWrapper,   # ADD
-    "wavlm":     SSLProbeWrapper,   # ADD
+    "wav2vec2": SSLProbeWrapper,
+    "hubert": SSLProbeWrapper,
+    "wavlm": SSLProbeWrapper,
+    "hubert-rawnet2": HuBERTRawNet2Wrapper,
 }
 
 

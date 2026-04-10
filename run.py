@@ -11,23 +11,36 @@ CONFIGS = {
     "aasist-l": "external/aasist/config/AASIST-L.conf",
     "rawnet2": "external/aasist/config/RawNet2_baseline.conf",
     "wav2vec2": "configs/wav2vec2_probe.yaml",
-    "hubert":   "configs/hubert_probe.yaml",
+    "hubert": "configs/hubert_probe.yaml",
     "wavlm":    "configs/wavlm_probe.yaml",
+    "hubert-rawnet2": "external/aasist/config/RawNet2_baseline.conf",
 }
 
 WEIGHTS = {
     "aasist": "external/aasist/models/weights/AASIST.pth",
     "aasist-l": "external/aasist/models/weights/AASIST-L.pth",
     "rawnet2": "external/aasist/models/weights/RawNet2.pth",
-    "wav2vec2": "models/wav2vec2_probe_layer11.pth",   # doesn't need to exist yet
-    "hubert":   "models/hubert_probe_layer11.pth",
-    "wavlm":    "models/wavlm_probe_layer11.pth",
+    "wav2vec2": "models/wav2vec2_probe_layer11.pth",  # doesn't need to exist yet
+    "hubert": "models/hubert_probe_layer11.pth",
+    "wavlm": "models/wavlm_probe_layer11.pth",
+    "hubert-rawnet2": None,
 }
 
 
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--model", required=True, choices=list(CONFIGS.keys()))
+    p.add_argument(
+        "--frontend_model",
+        choices=["none", "hubert"],
+        default="none",
+        help="Optional frontend feature extractor before backend model.",
+    )
+    p.add_argument(
+        "--frontend_ckpt",
+        default="facebook/hubert-base-ls960",
+        help="Frontend checkpoint or model id (used when --frontend_model hubert).",
+    )
     p.add_argument("--data_root", default="data/ASVspoof2019/LA")
     p.add_argument("--pipeline", choices=["N", "M", "P"], default=None)
     p.add_argument("--depth", type=int, choices=[0, 1, 2, 3], default=0)
@@ -53,12 +66,21 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     # Init model
-    model = get_model(
-        args.model,
-        config_path=CONFIGS[args.model],
-        data_root=args.data_root,
-    )
-    model.load_weights(WEIGHTS[args.model])
+    model_kwargs = {
+        "config_path": CONFIGS[args.model],
+        "data_root": args.data_root,
+    }
+    if args.model == "rawnet2":
+        model_kwargs["use_hubert"] = args.frontend_model == "hubert"
+        model_kwargs["hubert_model_name"] = args.frontend_ckpt
+    elif args.model == "hubert-rawnet2":
+        model_kwargs["hubert_model_name"] = args.frontend_ckpt
+
+    model = get_model(args.model, **model_kwargs)
+    weights = WEIGHTS[args.model]
+    if weights is not None and not Path(weights).exists():
+        raise FileNotFoundError(f"Missing weights file: {weights}")
+    model.load_weights(weights)
 
     # Laundering engine
     engine = LaunderingEngine(args.config_dir)

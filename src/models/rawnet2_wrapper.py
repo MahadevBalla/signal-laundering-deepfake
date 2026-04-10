@@ -8,24 +8,41 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-_RawNet2_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../external/RawNet2")
+# RawNet2 baseline support is provided inside the `external/aasist` framework
+# (see `external/aasist/config/RawNet2_baseline.conf`).
+_AASIST_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../../external/aasist")
 )
-sys.path.insert(0, _RawNet2_ROOT)
+sys.path.insert(0, _AASIST_ROOT)
 
 # from evaluation import calculate_tDCF_EER
 from main import get_loader, get_model
 
 from src.evaluation.metrics import evaluate_scores
+from src.models.hubert_frontend import HuBERTConfig, HuBERTFrontend
 
 
 class RawNet2Wrapper:
-    def __init__(self, config_path: str, data_root: str):
+    def __init__(
+        self,
+        config_path: str,
+        data_root: str,
+        use_hubert: bool = False,
+        hubert_model_name: str = "facebook/hubert-base-ls960",
+    ):
         with open(config_path) as f:
             self.config = json.load(f)
         self.config["database_path"] = str(Path(data_root).resolve())
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = get_model(self.config["model_config"], self.device)
+        self.use_hubert = use_hubert
+        self.hubert_frontend = None
+        if self.use_hubert:
+            self.hubert_frontend = HuBERTFrontend(
+                device=self.device,
+                cfg=HuBERTConfig(model_name=hubert_model_name),
+            )
+            print(f"[RawNet2] HuBERT frontend enabled: {hubert_model_name}")
 
     def load_weights(self, weights_path: str = None):
         path = weights_path or self.config["model_path"]
@@ -88,6 +105,8 @@ class RawNet2Wrapper:
             for batch_x, utt_ids in tqdm(eval_loader, desc="Scoring", unit="batch"):
                 if launder_fn is not None:
                     batch_x = launder_fn(batch_x)
+                if self.hubert_frontend is not None:
+                    batch_x = self.hubert_frontend(batch_x)
                 batch_x = batch_x.to(self.device)
                 _, batch_out = self.model(batch_x)
                 scores = batch_out[:, 1].cpu().numpy().ravel()
@@ -115,3 +134,18 @@ class RawNet2Wrapper:
         print(f"[RawNet2] EER: {result.eer:.4f}% | min-tDCF: {result.min_tdcf:.4f}")
         print(f"[RawNet2] Eval time: {(time.time() - start) / 60:.2f} min")
         return result.eer, result.min_tdcf
+
+
+class HuBERTRawNet2Wrapper(RawNet2Wrapper):
+    def __init__(
+        self,
+        config_path: str,
+        data_root: str,
+        hubert_model_name: str = "facebook/hubert-base-ls960",
+    ):
+        super().__init__(
+            config_path=config_path,
+            data_root=data_root,
+            use_hubert=True,
+            hubert_model_name=hubert_model_name,
+        )
