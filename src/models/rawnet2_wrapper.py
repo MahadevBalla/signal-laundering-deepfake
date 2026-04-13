@@ -1,3 +1,5 @@
+"""Wrappers for RawNet2 waveform models with optional HuBERT preprocessing."""
+
 import json
 import os
 import sys
@@ -23,6 +25,8 @@ from src.models.hubert_frontend import HuBERTConfig, HuBERTFrontend
 
 
 class RawNet2Wrapper:
+    """Load and evaluate RawNet2-style models in the unified pipeline."""
+
     def __init__(
         self,
         config_path: str,
@@ -30,6 +34,7 @@ class RawNet2Wrapper:
         use_hubert: bool = False,
         hubert_model_name: str = "facebook/hubert-base-ls960",
     ):
+        """Initialize RawNet2 and optional HuBERT frontend adapter."""
         with open(config_path) as f:
             self.config = json.load(f)
         self.config["database_path"] = str(Path(data_root).resolve())
@@ -45,6 +50,7 @@ class RawNet2Wrapper:
             print(f"[RawNet2] HuBERT frontend enabled: {hubert_model_name}")
 
     def load_weights(self, weights_path: str = None):
+        """Load RawNet2 weights from path or config default."""
         path = weights_path or self.config["model_path"]
         self.model.load_state_dict(
             torch.load(path, map_location=self.device, weights_only=True)
@@ -58,6 +64,7 @@ class RawNet2Wrapper:
         launder_fn=None,
         max_eval: int | None = 500,
     ) -> tuple[float, float]:
+        """Run evaluation scoring and return EER/min-tDCF."""
 
         start = time.time()
         print(f"[RawNet2] Device: {self.device}")
@@ -137,12 +144,15 @@ class RawNet2Wrapper:
 
 
 class HuBERTRawNet2Wrapper(RawNet2Wrapper):
+    """RawNet2 wrapper variant that always enables HuBERT frontend."""
+
     def __init__(
         self,
         config_path: str,
         data_root: str,
         hubert_model_name: str = "facebook/hubert-base-ls960",
     ):
+        """Initialize RawNet2 with HuBERT preprocessing turned on."""
         super().__init__(
             config_path=config_path,
             data_root=data_root,

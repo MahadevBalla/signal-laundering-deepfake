@@ -1,4 +1,7 @@
 # Pipeline N - Network / Communication
+# Use depending on the environment; set it to the actual mount path
+# noise_dir: data/noise/SPIB | /scratch/<your_username>/noise/SPIB
+# Leave null ONLY if you intentionally want white noise (not recommended):
 noise_dir: null  # set to SPIB/QUT noise dir; null = white noise fallback
 
 stages:

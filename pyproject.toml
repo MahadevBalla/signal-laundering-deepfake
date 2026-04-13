@@ -16,4 +16,6 @@ dependencies = [
     "torchcontrib==0.0.2",
     "tqdm==4.67.*",
     "pyyaml==6.0.*",
+    "transformers==4.38.*",
+    "pyroomacoustics==0.10.*",
 ]

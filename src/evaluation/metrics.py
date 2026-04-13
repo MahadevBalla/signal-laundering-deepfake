@@ -35,6 +35,7 @@ _STRENGTH_ORDER = {"L": 0, "M": 1, "H": 2}
 def compute_det_curve(
     target_scores: np.ndarray, nontarget_scores: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute FRR/FAR sweep and thresholds for a DET curve."""
     n = target_scores.size + nontarget_scores.size
     all_scores = np.concatenate((target_scores, nontarget_scores))
     labels = np.concatenate(
@@ -65,6 +66,7 @@ def _asv_error_rates(
     spoof_asv: np.ndarray,
     threshold: float,
 ) -> tuple[float, float, float]:
+    """Compute ASV false alarm, miss, and spoof-miss rates at one threshold."""
     pfa = float(np.sum(non_asv >= threshold) / non_asv.size)
     pmiss = float(np.sum(tar_asv < threshold) / tar_asv.size)
     pmiss_spoof = (
@@ -125,6 +127,8 @@ def load_asv_scores(
 
 # Full evaluation result
 class EvalResult(NamedTuple):
+    """Container for all metrics produced from one evaluation run."""
+
     eer: float  # percent
     min_tdcf: float
     eer_per_attack: dict[str, float]  # A07–A19, percent

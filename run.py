@@ -1,3 +1,15 @@
+"""Run a single evaluation condition for one model.
+
+This script is the quick entry point for checking one setup at a time.
+It supports clean evaluation (`depth=0`) and laundered evaluation
+(`depth>0`) with a selected pipeline and strength.
+
+Usage:
+    python run.py --model aasist --depth 0
+    python run.py --model rawnet2 --pipeline N --depth 2 --strength M
+    python run.py --model wav2vec2 --pipeline P --depth 3 --strength H
+"""
+
 import argparse
 from pathlib import Path
 
@@ -5,42 +17,13 @@ from src.evaluation.plots import plot_det_curve, plot_per_attack_eer
 from src.evaluation.results_writer import write_csv
 from src.laundering import LaunderingEngine
 from src.models.registry import get_model
-
-CONFIGS = {
-    "aasist": "external/aasist/config/AASIST.conf",
-    "aasist-l": "external/aasist/config/AASIST-L.conf",
-    "rawnet2": "external/aasist/config/RawNet2_baseline.conf",
-    "wav2vec2": "configs/wav2vec2_probe.yaml",
-    "hubert": "configs/hubert_probe.yaml",
-    "wavlm":    "configs/wavlm_probe.yaml",
-    "hubert-rawnet2": "external/aasist/config/RawNet2_baseline.conf",
-}
-
-WEIGHTS = {
-    "aasist": "external/aasist/models/weights/AASIST.pth",
-    "aasist-l": "external/aasist/models/weights/AASIST-L.pth",
-    "rawnet2": "external/aasist/models/weights/RawNet2.pth",
-    "wav2vec2": "models/wav2vec2_probe_layer11.pth",  # doesn't need to exist yet
-    "hubert": "models/hubert_probe_layer11.pth",
-    "wavlm": "models/wavlm_probe_layer11.pth",
-    "hubert-rawnet2": None,
-}
+from src.models.model_config import CONFIGS, WEIGHTS
 
 
 def parse_args():
+    """Parse command-line options for single-condition evaluation."""
     p = argparse.ArgumentParser()
     p.add_argument("--model", required=True, choices=list(CONFIGS.keys()))
-    p.add_argument(
-        "--frontend_model",
-        choices=["none", "hubert"],
-        default="none",
-        help="Optional frontend feature extractor before backend model.",
-    )
-    p.add_argument(
-        "--frontend_ckpt",
-        default="facebook/hubert-base-ls960",
-        help="Frontend checkpoint or model id (used when --frontend_model hubert).",
-    )
     p.add_argument("--data_root", default="data/ASVspoof2019/LA")
     p.add_argument("--pipeline", choices=["N", "M", "P"], default=None)
     p.add_argument("--depth", type=int, choices=[0, 1, 2, 3], default=0)
@@ -51,8 +34,8 @@ def parse_args():
 
 
 def main():
+    """Build the selected model, run evaluation, and save plots/results."""
     args = parse_args()
-
     if args.depth > 0 and args.pipeline is None:
         raise ValueError("--pipeline {N,M,P} is required when --depth > 0")
 
@@ -65,65 +48,29 @@ def main():
     )
     outdir.mkdir(parents=True, exist_ok=True)
 
-    # Init model
-    model_kwargs = {
-        "config_path": CONFIGS[args.model],
-        "data_root": args.data_root,
-    }
-    if args.model == "rawnet2":
-        model_kwargs["use_hubert"] = args.frontend_model == "hubert"
-        model_kwargs["hubert_model_name"] = args.frontend_ckpt
-    elif args.model == "hubert-rawnet2":
-        model_kwargs["hubert_model_name"] = args.frontend_ckpt
-
-    model = get_model(args.model, **model_kwargs)
-    weights = WEIGHTS[args.model]
+    model = get_model(args.model, config_path=CONFIGS[args.model], data_root=args.data_root)
+    weights = WEIGHTS.get(args.model)
     if weights is not None and not Path(weights).exists():
-        raise FileNotFoundError(f"Missing weights file: {weights}")
+        raise FileNotFoundError(f"Missing weights: {weights}")
     model.load_weights(weights)
 
-    # Laundering engine
     engine = LaunderingEngine(args.config_dir)
     launder_fn = (
         engine.get_batch_fn(args.pipeline or "N", args.depth, args.strength)
-        if args.depth > 0
-        else None
+        if args.depth > 0 else None
     )
 
-    # Evaluate
     eer, tdcf = model.evaluate(output_dir=str(outdir), launder_fn=launder_fn)
     result = model._last_eval_result
-    if args.depth == 0:
-        label = "clean"
-    else:
-        label = f"{args.pipeline}_k{args.depth}_{args.strength}"
+    label = "clean" if args.depth == 0 else f"{args.pipeline}_k{args.depth}_{args.strength}"
 
-    plot_det_curve(
-        {label: result},
-        str(outdir),
-        args.model,
-        condition_label=label,
-    )
+    plot_det_curve({label: result}, str(outdir), args.model, condition_label=label)
+    plot_per_attack_eer(result.eer_per_attack, str(outdir), args.model, condition_label=label)
 
-    plot_per_attack_eer(
-        result.eer_per_attack,
-        str(outdir),
-        args.model,
-        condition_label=label,
-    )
-
-    # Save results
     write_csv(
-        [
-            {
-                "model": args.model,
-                "pipeline": args.pipeline or "clean",
-                "depth": args.depth,
-                "strength": args.strength if args.depth > 0 else "-",
-                "eer": eer,
-                "tdcf": tdcf,
-            }
-        ],
+        [{"model": args.model, "pipeline": args.pipeline or "clean",
+          "depth": args.depth, "strength": args.strength if args.depth > 0 else "-",
+          "eer": eer, "tdcf": tdcf}],
         str(outdir),
     )
 

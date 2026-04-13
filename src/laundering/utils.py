@@ -1,3 +1,5 @@
+"""Shared audio utility functions used by laundering pipelines."""
+
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,6 +17,7 @@ _CODEC_EXT = {
 
 
 def ffmpeg_roundtrip(wav: np.ndarray, sr: int, codec: str, bitrate: int) -> np.ndarray:
+    """Encode and decode audio with ffmpeg, then restore original length."""
     ext = _CODEC_EXT[codec]
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "in.wav"
@@ -48,6 +51,7 @@ def ffmpeg_roundtrip(wav: np.ndarray, sr: int, codec: str, bitrate: int) -> np.n
 
 
 def _match_length(wav: np.ndarray, n: int) -> np.ndarray:
+    """Trim or pad waveform to exactly `n` samples."""
     if len(wav) >= n:
         return wav[:n]
     return np.pad(wav, (0, n - len(wav))).astype(np.float32)
@@ -56,6 +60,7 @@ def _match_length(wav: np.ndarray, n: int) -> np.ndarray:
 def add_noise_at_snr(
     signal: np.ndarray, noise: np.ndarray, snr_db: float
 ) -> np.ndarray:
+    """Mix noise into signal at the requested SNR in dB."""
     if len(noise) < len(signal):
         noise = np.tile(noise, int(np.ceil(len(signal) / len(noise))))
     noise = noise[: len(signal)]
@@ -68,6 +73,7 @@ def add_noise_at_snr(
 
 
 def load_noise(noise_dir: str | None, rng: np.random.Generator) -> np.ndarray:
+    """Load one random noise file, or return synthetic noise fallback."""
     if noise_dir is None:
         return rng.standard_normal(SR * 5).astype(np.float32)
 

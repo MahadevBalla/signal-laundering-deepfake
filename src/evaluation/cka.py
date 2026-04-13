@@ -103,5 +103,6 @@ def cosine_stability(
 
 
 def load_embeddings(pkl_path: str | Path) -> dict[int, np.ndarray]:
+    """Load saved layer embeddings from a pickle file."""
     with open(pkl_path, "rb") as f:
         return pickle.load(f)
