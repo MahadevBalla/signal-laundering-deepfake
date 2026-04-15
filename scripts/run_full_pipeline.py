@@ -168,6 +168,8 @@ def main() -> int:
         env.setdefault("PYTHONPATH", str(repo_root))
         env.setdefault("HF_HOME", str(repo_root / ".cache" / "huggingface"))
         Path(env["HF_HOME"]).mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault("HF_HOME", env["HF_HOME"])
+        os.environ.setdefault("PYTHONPATH", env["PYTHONPATH"])
         prefetch_hf_assets(args.model, env)
 
         try:
