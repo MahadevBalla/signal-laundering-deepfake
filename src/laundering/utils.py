@@ -156,6 +156,28 @@ def _resolve_ffmpeg_exe() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
+def safe_lowpass_cutoff(cutoff_hz: float, sr: int) -> float:
+    """Clamp a low-pass cutoff to the valid open interval (0, sr/2)."""
+    nyquist = sr / 2.0
+    return float(min(cutoff_hz, nyquist - 1.0))
+
+
+def safe_highpass_cutoff(cutoff_hz: float, sr: int) -> float:
+    """Clamp a high-pass cutoff to the valid open interval (0, sr/2)."""
+    nyquist = sr / 2.0
+    return float(max(1.0, min(cutoff_hz, nyquist - 1.0)))
+
+
+def safe_bandpass_cutoffs(low_hz: float, high_hz: float, sr: int) -> tuple[float, float]:
+    """Clamp band-pass cutoffs so SciPy receives a strictly valid interval."""
+    nyquist = sr / 2.0
+    low = max(1.0, float(low_hz))
+    high = min(float(high_hz), nyquist - 1.0)
+    if low >= high:
+        high = min(nyquist - 1.0, low + 1.0)
+    return low, high
+
+
 def resolve_strength(stage_params: dict, strength: str) -> dict:
     """Flatten strength-keyed dicts to scalar values for the given strength."""
     return {

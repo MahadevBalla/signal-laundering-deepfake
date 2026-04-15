@@ -3,14 +3,21 @@
 import numpy as np
 from scipy.signal import butter, sosfilt, fftconvolve
 
-from .utils import add_noise_at_snr, load_noise, resolve_strength
+from .utils import (
+    add_noise_at_snr,
+    load_noise,
+    resolve_strength,
+    safe_bandpass_cutoffs,
+    safe_highpass_cutoff,
+)
 
 
 def stage_P1(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
     """Loudspeaker bandpass coloration - fixed across all strengths."""
+    low_hz, high_hz = safe_bandpass_cutoffs(p["bp_low_hz"], p["bp_high_hz"], sr)
     sos = butter(
         N=p["bp_order"],
-        Wn=[p["bp_low_hz"], p["bp_high_hz"]],
+        Wn=[low_hz, high_hz],
         btype="band",
         fs=sr,
         output="sos",
@@ -57,7 +64,11 @@ def stage_P2(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
 def stage_P3(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
     """Microphone highpass coloration + environmental noise at target SNR."""
     sos = butter(
-        N=p["hp_order"], Wn=p["hp_cutoff_hz"], btype="high", fs=sr, output="sos"
+        N=p["hp_order"],
+        Wn=safe_highpass_cutoff(p["hp_cutoff_hz"], sr),
+        btype="high",
+        fs=sr,
+        output="sos",
     )
     wav = sosfilt(sos, wav).astype(np.float32)
     rng = np.random.default_rng(seed=42)

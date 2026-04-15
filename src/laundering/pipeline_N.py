@@ -3,7 +3,13 @@
 import numpy as np
 from scipy.signal import butter, sosfilt
 
-from .utils import ffmpeg_roundtrip, add_noise_at_snr, load_noise, resolve_strength
+from .utils import (
+    ffmpeg_roundtrip,
+    add_noise_at_snr,
+    load_noise,
+    resolve_strength,
+    safe_lowpass_cutoff,
+)
 
 
 def stage_N1(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
@@ -24,7 +30,11 @@ def stage_N2(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
             out[i * frame_len : (i + 1) * frame_len] = 0.0
 
     sos = butter(
-        N=p["lp_order"], Wn=p["lp_cutoff_hz"], btype="low", fs=sr, output="sos"
+        N=p["lp_order"],
+        Wn=safe_lowpass_cutoff(p["lp_cutoff_hz"], sr),
+        btype="low",
+        fs=sr,
+        output="sos",
     )
     return sosfilt(sos, out).astype(np.float32)
 
