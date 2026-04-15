@@ -9,7 +9,7 @@ stages:
 
   M2:
     codec: aac
-    bitrates:
+    bitrate:
       L: 48000
       M: 32000
       H: 16000
