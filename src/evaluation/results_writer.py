@@ -1,3 +1,5 @@
+"""Helpers for writing evaluation result tables to disk."""
+
 import csv
 from pathlib import Path
 

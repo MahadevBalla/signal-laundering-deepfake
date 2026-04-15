@@ -1,3 +1,5 @@
+"""Pipeline P: physical replay-style laundering stages."""
+
 import numpy as np
 from scipy.signal import butter, sosfilt, fftconvolve
 
@@ -68,6 +70,7 @@ _STAGES = [stage_P1, stage_P2, stage_P3]
 def apply(
     wav: np.ndarray, sr: int, depth: int, strength: str, params: dict
 ) -> np.ndarray:
+    """Apply first `depth` stages of physical replay simulation."""
     for i in range(depth):
         p = resolve_strength(params["stages"][f"P{i + 1}"], strength)
         p["noise_dir"] = params.get("noise_dir")

@@ -4,6 +4,7 @@ data/*
 
 # outputs
 outputs/
+exp_result/
 
 # environments
 .venv/
@@ -11,6 +12,7 @@ __pycache__/
 *.pyc
 *.pth
 venv/
+*.egg-info/
 
 # local freeze file
 req.txt

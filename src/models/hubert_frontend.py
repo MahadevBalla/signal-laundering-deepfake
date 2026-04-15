@@ -1,3 +1,5 @@
+"""HuBERT frontend adapter used before RawNet2 in hybrid experiments."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,6 +17,8 @@ except ImportError as exc:  # pragma: no cover - import guard
 
 @dataclass
 class HuBERTConfig:
+    """Configuration values for HuBERT feature extraction."""
+
     model_name: str = "facebook/hubert-base-ls960"
     target_sample_rate: int = 16000
 
@@ -23,6 +27,7 @@ class HuBERTFrontend(torch.nn.Module):
     """Extract HuBERT embeddings and adapt them back to a 1D sequence for RawNet2."""
 
     def __init__(self, device: str, cfg: HuBERTConfig | None = None):
+        """Load the HuBERT model and prepare it for inference."""
         super().__init__()
         self.cfg = cfg or HuBERTConfig()
         self.device = device

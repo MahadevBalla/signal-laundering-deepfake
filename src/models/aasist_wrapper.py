@@ -1,3 +1,5 @@
+"""Wrapper around external AASIST models for unified evaluation."""
+
 import json
 import os
 import sys
@@ -20,7 +22,10 @@ from src.evaluation.metrics import evaluate_scores
 
 
 class AASISTWrapper:
+    """Load and evaluate AASIST-style waveform models on ASVspoof data."""
+
     def __init__(self, config_path: str, data_root: str):
+        """Read config, set data root, and build external AASIST model."""
         with open(config_path) as f:
             self.config = json.load(f)
         self.config["database_path"] = str(Path(data_root).resolve())
@@ -28,6 +33,7 @@ class AASISTWrapper:
         self.model = get_model(self.config["model_config"], self.device)
 
     def load_weights(self, weights_path: str = None):
+        """Load model weights from path or from config default."""
         path = weights_path or self.config["model_path"]
         self.model.load_state_dict(
             torch.load(path, map_location=self.device, weights_only=True)
@@ -41,6 +47,7 @@ class AASISTWrapper:
         launder_fn=None,
         max_eval: int | None = 500,
     ) -> tuple[float, float]:
+        """Score eval utterances and return EER with min-tDCF."""
 
         start = time.time()
         print(f"[AASIST] Device: {self.device}")
