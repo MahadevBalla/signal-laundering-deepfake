@@ -104,6 +104,23 @@ def ensure_noise(repo_root: Path, max_retries: int) -> None:
     )
 
 
+def prefetch_hf_assets(model: str, env: dict[str, str]) -> None:
+    """Cache the SSL frontend assets once before subprocess-heavy stages begin."""
+    from transformers import AutoFeatureExtractor, AutoModel
+
+    model_ids = {
+        "wav2vec2": "facebook/wav2vec2-base",
+        "hubert": "facebook/hubert-base-ls960",
+        "wavlm": "microsoft/wavlm-base",
+    }
+    model_id = model_ids[model]
+    print(f"[HF] Prefetching {model_id}")
+    AutoFeatureExtractor.from_pretrained(model_id)
+    AutoModel.from_pretrained(model_id)
+    env["HF_HUB_OFFLINE"] = "1"
+    env["TRANSFORMERS_OFFLINE"] = "1"
+
+
 def write_config_variant(repo_root: Path, noise_mode: str) -> Path:
     source_dir = repo_root / "configs"
     temp_dir = Path(tempfile.mkdtemp(prefix="laundering_cfg_"))
@@ -149,6 +166,9 @@ def main() -> int:
         config_dir = write_config_variant(repo_root, args.noise_mode)
         env = os.environ.copy()
         env.setdefault("PYTHONPATH", str(repo_root))
+        env.setdefault("HF_HOME", str(repo_root / ".cache" / "huggingface"))
+        Path(env["HF_HOME"]).mkdir(parents=True, exist_ok=True)
+        prefetch_hf_assets(args.model, env)
 
         try:
             if not args.skip_sweep:
