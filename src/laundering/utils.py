@@ -1,11 +1,15 @@
 """Shared audio utility functions used by laundering pipelines."""
 
+import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+from scipy.io import loadmat
+from scipy.signal import resample_poly
 
 SR = 16000
 
@@ -19,6 +23,7 @@ _CODEC_EXT = {
 def ffmpeg_roundtrip(wav: np.ndarray, sr: int, codec: str, bitrate: int) -> np.ndarray:
     """Encode and decode audio with ffmpeg, then restore original length."""
     ext = _CODEC_EXT[codec]
+    ffmpeg_exe = _resolve_ffmpeg_exe()
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "in.wav"
         enc = Path(tmp) / f"enc.{ext}"
@@ -27,7 +32,7 @@ def ffmpeg_roundtrip(wav: np.ndarray, sr: int, codec: str, bitrate: int) -> np.n
         sf.write(str(src), wav, sr, subtype="PCM_16")
         subprocess.run(
             [
-                "ffmpeg",
+                ffmpeg_exe,
                 "-y",
                 "-i",
                 str(src),
@@ -41,7 +46,7 @@ def ffmpeg_roundtrip(wav: np.ndarray, sr: int, codec: str, bitrate: int) -> np.n
             check=True,
         )
         subprocess.run(
-            ["ffmpeg", "-y", "-i", str(enc), "-ar", str(sr), "-ac", "1", str(dst)],
+            [ffmpeg_exe, "-y", "-i", str(enc), "-ar", str(sr), "-ac", "1", str(dst)],
             capture_output=True,
             check=True,
         )
@@ -77,12 +82,78 @@ def load_noise(noise_dir: str | None, rng: np.random.Generator) -> np.ndarray:
     if noise_dir is None:
         return rng.standard_normal(SR * 5).astype(np.float32)
 
-    files = list(Path(noise_dir).glob("*.wav")) + list(Path(noise_dir).glob("*.flac"))
+    root = Path(noise_dir)
+    files = (
+        list(root.rglob("*.wav"))
+        + list(root.rglob("*.flac"))
+        + list(root.rglob("*.mat"))
+    )
     if not files:
         return rng.standard_normal(SR * 5).astype(np.float32)
 
-    noise, _ = sf.read(str(rng.choice(files)), dtype="float32")
-    return noise[:, 0] if noise.ndim > 1 else noise
+    path = Path(rng.choice(files))
+    if path.suffix.lower() == ".mat":
+        noise, src_sr = _load_mat_noise(path)
+    else:
+        noise, src_sr = sf.read(str(path), dtype="float32")
+
+    if noise.ndim > 1:
+        noise = noise[:, 0]
+    if src_sr and src_sr != SR:
+        noise = resample_poly(noise, SR, int(src_sr)).astype(np.float32)
+    return noise.astype(np.float32)
+
+
+def _load_mat_noise(path: Path) -> tuple[np.ndarray, int]:
+    """Extract a 1-D waveform and optional sample rate from a MATLAB file."""
+    data = loadmat(path)
+    sample_rate = None
+
+    for key in ("fs", "Fs", "sr", "SR", "sample_rate", "SampleRate"):
+        value = data.get(key)
+        if value is not None and np.size(value) == 1:
+            sample_rate = int(np.squeeze(value))
+            break
+
+    candidates: list[np.ndarray] = []
+    for key, value in data.items():
+        if key.startswith("__") or not isinstance(value, np.ndarray):
+            continue
+        if not np.issubdtype(value.dtype, np.number):
+            continue
+        squeezed = np.squeeze(value)
+        if squeezed.ndim == 1 and squeezed.size > 1000:
+            candidates.append(squeezed.astype(np.float32))
+        elif squeezed.ndim == 2 and 1 in squeezed.shape and squeezed.size > 1000:
+            candidates.append(squeezed.reshape(-1).astype(np.float32))
+
+    if not candidates:
+        raise ValueError(f"No numeric waveform found in MATLAB noise file: {path}")
+
+    if sample_rate is None:
+        sample_rate = 19980
+    return candidates[0], sample_rate
+
+
+def _resolve_ffmpeg_exe() -> str:
+    """Find a usable ffmpeg executable from PATH, env, or bundled Python package."""
+    env_override = os.environ.get("FFMPEG_BINARY")
+    if env_override:
+        return env_override
+
+    path_ffmpeg = shutil.which("ffmpeg")
+    if path_ffmpeg:
+        return path_ffmpeg
+
+    try:
+        import imageio_ffmpeg
+    except ImportError as exc:
+        raise FileNotFoundError(
+            "ffmpeg was not found on PATH and imageio-ffmpeg is not installed. "
+            "Install requirements or set FFMPEG_BINARY."
+        ) from exc
+
+    return imageio_ffmpeg.get_ffmpeg_exe()
 
 
 def resolve_strength(stage_params: dict, strength: str) -> dict:

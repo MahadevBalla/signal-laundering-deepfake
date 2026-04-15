@@ -22,6 +22,24 @@ uv sync
 uv pip install -r requirements.txt
 ```
 
+For a one-command end-to-end run of the SSL frontend + backend + laundering evaluation pipeline, use:
+
+```bash
+python scripts/run_full_pipeline.py --model wav2vec2 --backend aasist --install-deps --sync-submodules --noise-mode white --run-cka
+```
+
+This runner can:
+
+- install Python dependencies,
+- initialize missing git submodules,
+- validate your dataset layout,
+- optionally fetch SPIB and QUT noise data,
+- run layer-wise analysis,
+- train the selected weighted backend,
+- run the full laundering evaluation suite with summary plots and optional CKA.
+
+The default and recommended stable path is `--noise-mode white`, which uses the built-in white-noise fallback and does not require external noise downloads.
+
 ## Dataset
 
 We use the **ASVspoof 2019 Logical Access (LA)** dataset.
@@ -39,7 +57,41 @@ data/ASVspoof2019/LA/
   ASVspoof2019_LA_asv_scores/
 ```
 
-Optional: place SPIB or QUT-NOISE files under `data/noise/` for realistic noise in Pipelines N and P. Without this, white noise is used as a fallback.
+Optional: place SPIB and QUT-NOISE files under `data/noise/` for realistic noise in Pipelines N and P. Without these files, white noise is used as the default fallback.
+
+Expected layout:
+
+```md
+data/noise/
+  SPIB/
+    *.mat
+  QUT-NOISE/
+    QUT-NOISE/
+      *.wav
+      labels/
+      impulses/
+```
+
+This dataset is not auto-downloaded by the bootstrap script because it is distributed separately from the repo and may require manual access/acceptance steps.
+
+You can fetch both datasets into the expected locations with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/download_noise.ps1
+```
+
+Or, cross-platform:
+
+```bash
+python scripts/noise_setup.py --datasets SPIB QUT
+```
+
+The script downloads:
+
+- SPIB noise files from `http://spib.linse.ufsc.br/noise.html` into `data/noise/SPIB/`
+- QUT-NOISE archives from `https://research.qut.edu.au/saivt/databases/qut-noise-databases-and-protocols/` and extracts them under `data/noise/QUT-NOISE/`
+
+If you download manually, unzip all `QUT-NOISE*.zip` archives into the same `data/noise/QUT-NOISE/` directory.
 
 ## Models and pre-trained weights
 
