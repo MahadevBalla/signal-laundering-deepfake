@@ -5,14 +5,14 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=48:00:00
-#SBATCH --output=logs/%x_%j.out
-#SBATCH --error=logs/%x_%j.err
+#SBATCH --output=%x_%j.out
+#SBATCH --error=%x_%j.err
 
 set -euo pipefail
 
 # Usage examples:
 #   sbatch scripts/run_full_pipeline.sbatch
-#   sbatch scripts/run_full_pipeline.sbatch wav2vec2 aasist white --run-cka
+#   sbatch scripts/run_full_pipeline.sbatch wav2vec2 aasist white
 #   sbatch scripts/run_full_pipeline.sbatch hubert ffn white --dry-run
 
 MODEL="${1:-wav2vec2}"
@@ -22,10 +22,9 @@ shift $(( $# >= 3 ? 3 : $# ))
 EXTRA_ARGS=("$@")
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+DEFAULT_PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="${SLURM_SUBMIT_DIR:-$DEFAULT_PROJECT_DIR}"
 cd "$PROJECT_DIR"
-
-mkdir -p logs
 
 module purge
 module load python/3.11.14
@@ -46,6 +45,7 @@ echo "  Model:      $MODEL"
 echo "  Backend:    $BACKEND"
 echo "  Noise:      $NOISE_MODE"
 echo "  Extra args: ${EXTRA_ARGS[*]:-<none>}"
+echo "  Project:    $PROJECT_DIR"
 echo "  GPU:        $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'N/A')"
 echo "  Node:       $(hostname)"
 echo "  Start:      $(date)"
