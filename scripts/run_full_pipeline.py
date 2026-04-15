@@ -46,6 +46,28 @@ def ensure_deps(repo_root: Path) -> None:
     run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], repo_root)
 
 
+def ensure_runtime_deps(repo_root: Path) -> None:
+    """Install repo requirements when critical runtime packages are missing."""
+    missing = []
+    checks = {
+        "torch": "torch",
+        "scipy": "scipy",
+        "soundfile": "soundfile",
+        "yaml": "pyyaml",
+        "transformers": "transformers",
+        "imageio_ffmpeg": "imageio-ffmpeg",
+    }
+    for module_name, package_name in checks.items():
+        try:
+            __import__(module_name)
+        except ImportError:
+            missing.append(package_name)
+
+    if missing:
+        print(f"[DEPS] Missing runtime packages detected: {', '.join(missing)}")
+        ensure_deps(repo_root)
+
+
 def ensure_submodules(repo_root: Path) -> None:
     aasist_root = repo_root / "external" / "aasist"
     if aasist_root.exists():
@@ -156,6 +178,8 @@ def main() -> int:
     try:
         if args.install_deps:
             ensure_deps(repo_root)
+        else:
+            ensure_runtime_deps(repo_root)
         if args.sync_submodules:
             ensure_submodules(repo_root)
         ensure_asvspoof(data_root)
