@@ -45,6 +45,12 @@ def parse_args():
     p.add_argument("--pipeline", choices=["N", "M", "P"], default=None)
     p.add_argument("--depth", type=int, choices=[0, 1, 2, 3], default=0)
     p.add_argument("--strength", choices=["L", "M", "H"], default="M")
+    p.add_argument(
+        "--max_eval",
+        type=int,
+        default=500,
+        help="Number of eval samples to score. Use -1 for full eval set.",
+    )
     p.add_argument("--output", default="outputs")
     p.add_argument("--config_dir", default="configs")
     return p.parse_args()
@@ -91,7 +97,12 @@ def main():
     )
 
     # Evaluate
-    eer, tdcf = model.evaluate(output_dir=str(outdir), launder_fn=launder_fn)
+    max_eval = None if args.max_eval < 0 else args.max_eval
+    eer, tdcf = model.evaluate(
+        output_dir=str(outdir),
+        launder_fn=launder_fn,
+        max_eval=max_eval,
+    )
     result = model._last_eval_result
     if args.depth == 0:
         label = "clean"
