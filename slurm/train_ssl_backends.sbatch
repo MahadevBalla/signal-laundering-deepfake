@@ -61,12 +61,12 @@ module purge
 module load python/3.11.14        # adjust to your HPC module name
 
 # ── Virtual environment ───────────────────────────────────────────────────────
-if [ ! -d ".venv" ]; then
-    python -m venv .venv
+if [ ! -f ".venv/bin/activate" ]; then
+    echo "ERROR: missing virtual environment at $PROJECT_DIR/.venv"
+    echo "Create it manually and install requirements before submitting this job."
+    exit 1
 fi
 source .venv/bin/activate
-pip install --upgrade pip -q
-pip install -r requirements.txt -q
 
 if [ ! -f "external/aasist/main.py" ]; then
     echo "ERROR: external/aasist is missing. Submodules must be initialized before submitting this job."

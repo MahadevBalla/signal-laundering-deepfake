@@ -41,6 +41,27 @@ echo "  Signal Laundering - Full HPC Submission"
 echo "  $(date)"
 echo "================================================"
 
+if [ ! -d "logs" ]; then
+    echo "ERROR: logs directory is missing in $PROJECT_DIR"
+    exit 1
+fi
+if [ ! -d "models" ]; then
+    echo "ERROR: models directory is missing in $PROJECT_DIR"
+    exit 1
+fi
+
+HF_HOME="${HF_HOME:-$PROJECT_DIR/.cache/huggingface}"
+if [ ! -d "$HF_HOME" ]; then
+    echo "ERROR: HF_HOME directory '$HF_HOME' is missing"
+    exit 1
+fi
+
+if [ ! -f ".venv/bin/activate" ]; then
+    echo "ERROR: missing virtual environment at $PROJECT_DIR/.venv"
+    echo "Create it manually and install requirements before running submit_all.sh"
+    exit 1
+fi
+
 # Stage 0: Raw audio model checks
 echo ""
 echo "Stage 0: Verify pretrained raw-audio weights"

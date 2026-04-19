@@ -27,16 +27,19 @@ cd "$PROJECT_DIR"
 module purge
 module load python/3.11.14
 
-if [ ! -d ".venv" ]; then
-    python -m venv .venv
+if [ ! -f ".venv/bin/activate" ]; then
+    echo "ERROR: missing virtual environment at $PROJECT_DIR/.venv"
+    echo "Create it manually and install requirements before submitting this job."
+    exit 1
 fi
 source .venv/bin/activate
 
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-
 export HF_HOME="${HF_HOME:-$PROJECT_DIR/.cache/huggingface}"
-mkdir -p "$HF_HOME"
+if [ ! -d "$HF_HOME" ]; then
+    echo "ERROR: HF_HOME directory '$HF_HOME' is missing."
+    echo "Create it manually or set HF_HOME to an existing directory before submitting this job."
+    exit 1
+fi
 
 echo "========================================"
 echo "  Model:      $MODEL"

@@ -28,24 +28,28 @@ EXTRA_ARGS="${@:2}"
 PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 cd "$PROJECT_DIR"
 
-mkdir -p logs
+if [ ! -d "logs" ]; then
+    echo "ERROR: logs directory is missing. Create it manually before submitting this job."
+    exit 1
+fi
 
 module purge
 module load python/3.11.14   # adjust to your HPC module name
 
-# Create venv if needed
-if [ ! -d ".venv" ]; then
-    uv venv .venv
+if [ ! -f ".venv/bin/activate" ]; then
+    echo "ERROR: missing virtual environment at $PROJECT_DIR/.venv"
+    echo "Create it manually and install requirements before submitting this job."
+    exit 1
 fi
 source .venv/bin/activate
 
-# Install / sync dependencies
-uv pip install --upgrade pip
-uv pip install -r requirements.txt
-
 # Hugging Face cache — keep inside project dir to avoid home quota issues
 export HF_HOME="${HF_HOME:-$PROJECT_DIR/.cache/huggingface}"
-mkdir -p "$HF_HOME"
+if [ ! -d "$HF_HOME" ]; then
+    echo "ERROR: HF_HOME directory '$HF_HOME' is missing."
+    echo "Create it manually or set HF_HOME to an existing directory before submitting this job."
+    exit 1
+fi
 
 echo "========================================"
 echo "  Model:      $MODEL"
