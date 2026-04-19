@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=layer_sweep_%a
-#SBATCH --partition=gpu
+#SBATCH --partition=general
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
@@ -34,7 +34,8 @@
 #   sbatch --array=0 slurm/layer_sweep.sbatch
 #
 # Dry-run (2 epochs, 200 utterances per layer):
-#   sbatch --array=0 slurm/layer_sweep.sbatch --dry_run
+#   sbatch --array=0 slurm/layer_sweep.sbatch
+#   # then set LAYER_SWEEP_EXTRA_ARGS="--dry_run" below before submit
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -43,7 +44,9 @@ SSL_MODELS=(wav2vec2 hubert wavlm)
 IDX=${SLURM_ARRAY_TASK_ID}
 MODEL="${SSL_MODELS[$IDX]}"
 
-EXTRA_ARGS="${@:-}"
+# Slurm does not forward extra CLI args passed to sbatch.
+# Set this before submission when needed (example: "--dry_run").
+LAYER_SWEEP_EXTRA_ARGS=""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -60,7 +63,11 @@ fi
 source .venv/bin/activate
 pip install --upgrade pip -q
 pip install -r requirements.txt -q
-git submodule update --init --recursive
+if [ ! -f "external/aasist/main.py" ]; then
+    echo "ERROR: external/aasist is missing. Submodules must be initialized before submitting this job."
+    echo "Initialize submodules outside this job script before submission."
+    exit 1
+fi
 
 export HF_HOME="${HF_HOME:-$PROJECT_DIR/.cache/huggingface}"
 mkdir -p "$HF_HOME"
@@ -80,7 +87,7 @@ python layer_sweep.py \
     --epochs     20 \
     --lr         1e-4 \
     --batch_size 32 \
-    $EXTRA_ARGS
+    $LAYER_SWEEP_EXTRA_ARGS
 
 echo "========================================================"
 echo "  Done: $(date)"

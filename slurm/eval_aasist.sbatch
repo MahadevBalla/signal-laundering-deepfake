@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval_aasist
-#SBATCH --partition=gpu
+#SBATCH --partition=general
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
@@ -44,7 +44,11 @@ fi
 source .venv/bin/activate
 pip install --upgrade pip -q
 pip install -r requirements.txt -q
-git submodule update --init --recursive
+if [ ! -f "external/aasist/main.py" ]; then
+    echo "ERROR: external/aasist is missing. Submodules must be initialized before submitting this job."
+    echo "Initialize submodules outside this job script before submission."
+    exit 1
+fi
 
 export HF_HOME="${HF_HOME:-$PROJECT_DIR/.cache/huggingface}"
 mkdir -p "$HF_HOME"
