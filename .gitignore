@@ -16,3 +16,6 @@ venv/
 
 # local freeze file
 req.txt
+
+# Backup files
+*.bak

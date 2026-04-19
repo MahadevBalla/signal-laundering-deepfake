@@ -7,7 +7,7 @@
 #SBATCH --time=36:00:00
 #SBATCH --output=logs/train_ssl_%a_%j.out
 #SBATCH --error=logs/train_ssl_%a_%j.err
-#SBATCH --array=0-8    # 9 combos: 3 SSL frontends x 3 backends
+#SBATCH --array=0-5    # 6 combos: 3 SSL frontends x {aasist, rawnet2} backends
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Train all SSL frontend + backend combinations using a SLURM array job.
@@ -15,21 +15,18 @@
 #
 #   Index  SSL Model   Backend    Saved weight
 #   -----  ---------   -------    -----------------
-#     0    wav2vec2    ffn        models/wav2vec2_ffn_weighted.pth
-#     1    wav2vec2    aasist     models/wav2vec2_aasist_weighted.pth
-#     2    wav2vec2    rawnet2    models/wav2vec2_rawnet2_weighted.pth
-#     3    hubert      ffn        models/hubert_ffn_weighted.pth
-#     4    hubert      aasist     models/hubert_aasist_weighted.pth
-#     5    hubert      rawnet2    models/hubert_rawnet2_weighted.pth
-#     6    wavlm       ffn        models/wavlm_ffn_weighted.pth
-#     7    wavlm       aasist     models/wavlm_aasist_weighted.pth
-#     8    wavlm       rawnet2    models/wavlm_rawnet2_weighted.pth
+#     0    wav2vec2    aasist     models/wav2vec2_aasist_weighted.pth
+#     1    wav2vec2    rawnet2    models/wav2vec2_rawnet2_weighted.pth
+#     2    hubert      aasist     models/hubert_aasist_weighted.pth
+#     3    hubert      rawnet2    models/hubert_rawnet2_weighted.pth
+#     4    wavlm       aasist     models/wavlm_aasist_weighted.pth
+#     5    wavlm       rawnet2    models/wavlm_rawnet2_weighted.pth
 #
 # Submit:
 #   sbatch slurm/train_ssl_backends.sbatch
 #
 # Submit only a subset (e.g. wav2vec2 only):
-#   sbatch --array=0-2 slurm/train_ssl_backends.sbatch
+#   sbatch --array=0-1 slurm/train_ssl_backends.sbatch
 #
 # Training config: Adam lr=1e-4, batch=32, CE loss, 50 epochs,
 # early stopping patience=10 on dev loss. SSL frontend is FROZEN.
@@ -38,8 +35,8 @@
 set -euo pipefail
 
 # ── Array index → (model, backend) mapping ───────────────────────────────────
-SSL_MODELS=(wav2vec2 wav2vec2 wav2vec2 hubert hubert hubert wavlm wavlm wavlm)
-BACKENDS=(ffn aasist rawnet2 ffn aasist rawnet2 ffn aasist rawnet2)
+SSL_MODELS=(wav2vec2 wav2vec2 hubert hubert wavlm wavlm)
+BACKENDS=(aasist rawnet2 aasist rawnet2 aasist rawnet2)
 
 IDX=${SLURM_ARRAY_TASK_ID}
 MODEL="${SSL_MODELS[$IDX]}"
