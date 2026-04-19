@@ -21,6 +21,7 @@
 set -euo pipefail
 
 EXTRA_ARGS="${@:-}"
+RAWNET2_WEIGHTS="${RAWNET2_WEIGHTS:-/scratch/mahadevballa23/signal-laundering-deepfake/outputs/rawnet2/weights/best.pth}"
 
 PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 cd "$PROJECT_DIR"
@@ -51,9 +52,15 @@ if [ ! -d "$HF_HOME" ]; then
     echo "Create it manually or set HF_HOME to an existing directory before submitting this job."
     exit 1
 fi
+if [ ! -f "$RAWNET2_WEIGHTS" ]; then
+    echo "ERROR: RawNet2 weights not found at $RAWNET2_WEIGHTS"
+    echo "Set RAWNET2_WEIGHTS to your checkpoint path when submitting if needed."
+    exit 1
+fi
 
 echo "========================================================"
 echo "  Job:   RawNet2 - Full Laundering Eval Grid"
+echo "  Weights: $RAWNET2_WEIGHTS"
 echo "  GPU:   $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
 echo "  Node:  $(hostname)"
 echo "  Start: $(date)"
@@ -62,6 +69,7 @@ echo "========================================================"
 python eval_suite.py \
     --model    rawnet2 \
     --data_root data/LA \
+    --weights "$RAWNET2_WEIGHTS" \
     --pipelines N M P \
     --strengths L M H \
     --depths 0 1 2 3 \

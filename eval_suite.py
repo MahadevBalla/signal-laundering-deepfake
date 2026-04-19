@@ -61,6 +61,8 @@ def parse_args():
     p.add_argument("--data_root",   default="data/ASVspoof2019/LA")
     p.add_argument("--config_dir",  default="configs")
     p.add_argument("--output_dir",  default="outputs/eval_suite")
+    p.add_argument("--weights",     default=None,
+                   help="Optional checkpoint path to override registry default.")
     p.add_argument("--dry_run",     action="store_true")
     p.add_argument("--max_eval",    type=int, default=None)
     p.add_argument("--run_cka",     action="store_true")
@@ -265,13 +267,15 @@ def main():
             log.info(f"[RESUME] {len(completed)} done")
 
     log.info(f"Model: {args.model}")
-    weights_path = WEIGHTS.get(args.model)
+    weights_path = args.weights or WEIGHTS.get(args.model)
     if weights_path and not Path(weights_path).exists():
         bk = "aasist" if "_aasist" in args.model else ("rawnet2" if "_rawnet2" in args.model else "ffn")
         sb = args.model.split("_")[0]
         hint = (f"python train_ssl_backend.py --model {sb} --mode weighted --backend {bk}"
                 if args.model in SSL_MODELS else "Check pretrained weights were downloaded.")
         raise FileNotFoundError(f"Weights not found: {weights_path}\n{hint}")
+    if weights_path:
+        log.info(f"Weights: {weights_path}")
 
     model = get_model(args.model, config_path=CONFIGS[args.model], data_root=args.data_root)
     model.load_weights(weights_path)
