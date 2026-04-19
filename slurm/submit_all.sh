@@ -29,7 +29,7 @@ DRY_RUN="${DRY_RUN:-0}"
 
 _sbatch() {
     if [ "$DRY_RUN" = "1" ]; then
-        echo "[DRY-RUN] sbatch $*"
+        echo "[DRY-RUN] sbatch $*" >&2
         echo "FAKE_JOB_ID"
     else
         sbatch "$@" | awk '{print $NF}'
@@ -40,6 +40,8 @@ echo "================================================"
 echo "  Signal Laundering - Full HPC Submission"
 echo "  $(date)"
 echo "================================================"
+
+cd /home/mahadevballa23/scratch_space/signal-laundering-deepfake
 
 # Stage 0: Raw audio model checks
 echo ""
@@ -76,7 +78,7 @@ echo "  RawNet2 eval job: $JOB_EVAL_RN2"
 # Stage 3: SSL evaluations
 echo ""
 echo "Stage 3: Eval all SSL models + CKA (after Stage 1a SSL training)"
-JOB_EVAL_SSL=$(_sbatch --dependency=afterok:${JOB_SSL_TRAIN} slurm/eval_ssl_grid.sbatch)
+JOB_EVAL_SSL=$(_sbatch --dependency=afterany:${JOB_SSL_TRAIN} slurm/eval_ssl_grid.sbatch)
 echo "  SSL eval array job: $JOB_EVAL_SSL"
 
 echo ""

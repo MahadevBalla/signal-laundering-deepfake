@@ -21,7 +21,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-mkdir -p logs models
+if [ ! -d "logs" ]; then
+    echo "ERROR: logs directory is missing. Create it manually before submitting this job."
+    exit 1
+fi
+if [ ! -d "models" ]; then
+    echo "ERROR: models directory is missing. Create it manually before submitting this job."
+    exit 1
+fi
 
 module purge
 module load python/3.11.14        # adjust to your HPC module name
@@ -42,7 +49,11 @@ if [ ! -f "external/aasist/main.py" ]; then
 fi
 
 export HF_HOME="${HF_HOME:-$PROJECT_DIR/.cache/huggingface}"
-mkdir -p "$HF_HOME"
+if [ ! -d "$HF_HOME" ]; then
+    echo "ERROR: HF_HOME directory '$HF_HOME' is missing."
+    echo "Create it manually or set HF_HOME to an existing directory before submitting this job."
+    exit 1
+fi
 
 echo "========================================================"
 echo "  Job:   RawNet2 - Raw Audio (pretrained weights check)"
