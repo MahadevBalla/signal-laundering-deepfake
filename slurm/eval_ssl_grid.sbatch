@@ -55,8 +55,7 @@ MODEL="${SSL_MODEL_KEYS[$IDX]}"
 
 EXTRA_ARGS="${@:-}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 cd "$PROJECT_DIR"
 
 if [ ! -d "logs" ]; then

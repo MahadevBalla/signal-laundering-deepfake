@@ -21,9 +21,7 @@ NOISE_MODE="${3:-white}"
 shift $(( $# >= 3 ? 3 : $# ))
 EXTRA_ARGS=("$@")
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$DEFAULT_PROJECT_DIR}"
+PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 cd "$PROJECT_DIR"
 
 module purge

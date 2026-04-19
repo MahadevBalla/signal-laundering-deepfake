@@ -22,8 +22,8 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
+cd "$PROJECT_DIR"
 
 DRY_RUN="${DRY_RUN:-0}"
 
@@ -40,8 +40,6 @@ echo "================================================"
 echo "  Signal Laundering - Full HPC Submission"
 echo "  $(date)"
 echo "================================================"
-
-cd /home/mahadevballa23/scratch_space/signal-laundering-deepfake
 
 # Stage 0: Raw audio model checks
 echo ""

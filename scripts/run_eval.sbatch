@@ -25,9 +25,7 @@ MODEL="${1:?ERROR: pass model name as first argument, e.g. aasist}"
 # All remaining args forwarded to eval_suite.py
 EXTRA_ARGS="${@:2}"
 
-# Resolve project directory (script is in PROJECT_DIR/scripts/)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 cd "$PROJECT_DIR"
 
 mkdir -p logs
