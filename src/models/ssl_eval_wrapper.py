@@ -106,7 +106,7 @@ class SSLEvalWrapper:
             for batch_x, utt_ids, srcs, keys in tqdm(loader, desc=f"{self.config['model_type']}|{self._tag()}"):
                 if launder_fn is not None:
                     batch_x = launder_fn(batch_x)
-                scores = self._forward(self.frontend(batch_x))[:, 1].cpu().numpy()
+                scores = self._forward(self.frontend(batch_x))[:, 0].cpu().numpy()
                 fname_list.extend(utt_ids); score_list.extend(scores.tolist())
                 src_list.extend(srcs); key_list.extend(keys)
         score_path = out / "eval_scores.txt"
