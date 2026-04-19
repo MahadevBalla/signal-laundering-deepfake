@@ -47,6 +47,7 @@ MODEL="${SSL_MODELS[$IDX]}"
 # Slurm does not forward extra CLI args passed to sbatch.
 # Set this before submission when needed (example: "--dry_run").
 LAYER_SWEEP_EXTRA_ARGS=""
+DATA_ROOT="data/LA"
 
 PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 cd "$PROJECT_DIR"
@@ -57,6 +58,18 @@ if [ ! -d "logs" ]; then
 fi
 if [ ! -d "models" ]; then
     echo "ERROR: models directory is missing. Create it manually before submitting this job."
+    exit 1
+fi
+if [ ! -d "$DATA_ROOT/ASVspoof2019_LA_train/flac" ]; then
+    echo "ERROR: missing $DATA_ROOT/ASVspoof2019_LA_train/flac"
+    exit 1
+fi
+if [ ! -d "$DATA_ROOT/ASVspoof2019_LA_dev/flac" ]; then
+    echo "ERROR: missing $DATA_ROOT/ASVspoof2019_LA_dev/flac"
+    exit 1
+fi
+if [ ! -f "$DATA_ROOT/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt" ]; then
+    echo "ERROR: missing $DATA_ROOT/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
     exit 1
 fi
 
@@ -92,7 +105,7 @@ echo "========================================================"
 
 python layer_sweep.py \
     --model      "$MODEL" \
-    --data_root  data/ASVspoof2019/LA \
+    --data_root  "$DATA_ROOT" \
     --layers     0 1 2 3 4 5 6 7 8 9 10 11 \
     --epochs     20 \
     --lr         1e-4 \
