@@ -77,7 +77,7 @@ echo "Weights found: $WEIGHTS"
 # Sanity-check dry run (200 samples, clean baseline only)
 python eval_suite.py \
     --model aasist \
-    --data_root data/ASVspoof2019/LA \
+    --data_root data/LA \
     --depths 0 \
     --dry_run \
     --max_eval 200

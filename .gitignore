@@ -1,7 +1,7 @@
 # data
 data/*
 !data/.gitkeep
-
+logs
 # outputs
 outputs/
 exp_result/

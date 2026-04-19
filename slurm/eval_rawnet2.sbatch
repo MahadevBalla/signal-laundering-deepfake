@@ -61,7 +61,7 @@ echo "========================================================"
 
 python eval_suite.py \
     --model    rawnet2 \
-    --data_root data/ASVspoof2019/LA \
+    --data_root data/LA \
     --pipelines N M P \
     --strengths L M H \
     --depths 0 1 2 3 \

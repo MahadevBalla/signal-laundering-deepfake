@@ -93,7 +93,7 @@ python train_ssl_backend.py \
     --model    "$MODEL" \
     --mode     weighted \
     --backend  "$BACKEND" \
-    --data_root data/ASVspoof2019/LA \
+    --data_root data/LA \
     --epochs   50 \
     --patience 10 \
     --lr       1e-4 \
