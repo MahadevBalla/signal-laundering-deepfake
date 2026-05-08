@@ -59,7 +59,8 @@ def _run_epoch(backend, frontend, loader, optimizer, criterion, device, mode, la
     ctx = torch.enable_grad() if train else torch.no_grad()
     with ctx:
         for batch_x, _ids, _srcs, keys in tqdm(loader, desc="train" if train else "dev  ", leave=False):
-            with torch.no_grad():
+            batch_x = batch_x.to(device, non_blocking=True)
+            with torch.inference_mode():
                 layer_states = frontend(batch_x)
             labels = torch.tensor([LABEL_MAP[k] for k in keys], dtype=torch.long, device=device)
             logits = backend(layer_states[layer]) if (mode == "single" and backend_type == "ffn") else backend(layer_states)
@@ -111,6 +112,10 @@ def main() -> None:
         print(f"[DRY RUN] max_train={args.max_train}  max_dev={args.max_dev}  epochs={args.epochs}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    if device == "cuda":
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     print(f"device={device}  model={args.model}  mode={args.mode}  backend={args.backend}"
           + (f"  layer={args.layer}" if args.mode == "single" else ""))
 
@@ -136,6 +141,9 @@ def main() -> None:
     else:
         raise ValueError(f"Unknown backend: {args.backend}")
 
+    if device == "cuda":
+        backend = torch.compile(backend, mode="reduce-overhead")
+
     print(f"Trainable params: {sum(p.numel() for p in backend.parameters() if p.requires_grad):,}")
 
     data_root = Path(args.data_root)
@@ -147,7 +155,13 @@ def main() -> None:
         dev_ds.trials = dev_ds.trials[:args.max_dev]
     print(f"Train: {len(train_ds)}  Dev: {len(dev_ds)}")
 
-    kw = dict(batch_size=args.batch_size, num_workers=4, pin_memory=(device == "cuda"))
+    kw = dict(
+        batch_size=args.batch_size,
+        num_workers=8,
+        pin_memory=(device == "cuda"),
+        persistent_workers=True,
+        prefetch_factor=4,
+    )
     train_loader = DataLoader(train_ds, shuffle=True,  **kw)
     dev_loader   = DataLoader(dev_ds,   shuffle=False, **kw)
 
