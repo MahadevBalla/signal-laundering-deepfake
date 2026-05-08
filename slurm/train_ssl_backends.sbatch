@@ -51,14 +51,22 @@ cd "$PROJECT_DIR"
 # ── Create logs/ and models/ if missing ──────────────────────────────────────
 mkdir -p logs models
 
-# ── Activate Spack and load Python ───────────────────────────────────────────
+# ── Activate Spack and load Anaconda (matches eval scripts) ──────────────────
 source /lustre-flash/apps/spack/share/spack/setup-env.sh
-spack load python@3.11
+spack load anaconda3@2023.09-0
+eval "$(conda shell.bash hook)"
 
-# ── Create virtualenv if missing ─────────────────────────────────────────────
+# ── Activate pre-built venv ───────────────────────────────────────────────────
 if [ ! -f "$VENV_DIR/bin/activate" ]; then
-    echo ">>> Creating virtual environment at $VENV_DIR ..."
-    python -m venv "$VENV_DIR"
+    echo "ERROR: Virtual environment not found at $VENV_DIR"
+    echo "Build it on the login node first:"
+    echo "  source /lustre-flash/apps/spack/share/spack/setup-env.sh"
+    echo "  spack load anaconda3@2023.09-0"
+    echo "  eval \"$(conda shell.bash hook)\""
+    echo "  python -m venv $VENV_DIR"
+    echo "  source $VENV_DIR/bin/activate"
+    echo "  pip install -r $PROJECT_DIR/requirements.txt"
+    exit 1
 fi
 source "$VENV_DIR/bin/activate"
 echo ">>> Python: $(which python) | $(python --version)"
