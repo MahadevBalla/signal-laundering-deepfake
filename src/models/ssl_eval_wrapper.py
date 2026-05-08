@@ -22,6 +22,23 @@ from src.models.backends import FFNBackend, WeightedAggregationBackend, SSLWithA
 from src.evaluation.metrics import evaluate_scores
 
 
+class _LaunderedDataset(torch.utils.data.Dataset):
+    """Applies laundering per sample inside DataLoader worker processes."""
+
+    def __init__(self, base_dataset, launder_fn=None):
+        self.base = base_dataset
+        self.launder_fn = launder_fn
+
+    def __len__(self):
+        return len(self.base)
+
+    def __getitem__(self, idx):
+        wav, utt_id, src, key = self.base[idx]
+        if self.launder_fn is not None:
+            wav = self.launder_fn(wav.unsqueeze(0)).squeeze(0)
+        return wav, utt_id, src, key
+
+
 class SSLEvalWrapper:
     """Run evaluation for SSL models with FFN, AASIST, or RawNet2 backends."""
 
@@ -98,14 +115,15 @@ class SSLEvalWrapper:
                              max_len=self.config.get("max_len_samples", 64000))
         if max_eval is not None:
             dataset.trials = dataset.trials[:max_eval]
-        loader = DataLoader(dataset, batch_size=self.config.get("batch_size", 32),
-                            shuffle=False, num_workers=4, pin_memory=(self.device == "cuda"))
+        loader = DataLoader(_LaunderedDataset(dataset, launder_fn),
+                            batch_size=self.config.get("batch_size", 32),
+                            shuffle=False, num_workers=8, pin_memory=(self.device == "cuda"),
+                            persistent_workers=True, prefetch_factor=4)
         fname_list, score_list, src_list, key_list = [], [], [], []
         self.backend.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             for batch_x, utt_ids, srcs, keys in tqdm(loader, desc=f"{self.config['model_type']}|{self._tag()}"):
-                if launder_fn is not None:
-                    batch_x = launder_fn(batch_x)
+                batch_x = batch_x.to(self.device, non_blocking=True)
                 scores = self._forward(self.frontend(batch_x))[:, 0].cpu().numpy()
                 fname_list.extend(utt_ids); score_list.extend(scores.tolist())
                 src_list.extend(srcs); key_list.extend(keys)
@@ -129,12 +147,15 @@ class SSLEvalWrapper:
                              max_len=self.config.get("max_len_samples", 64000))
         if max_eval is not None:
             dataset.trials = dataset.trials[:max_eval]
-        loader = DataLoader(dataset, batch_size=self.config.get("batch_size", 32), shuffle=False, num_workers=4)
+        loader = DataLoader(_LaunderedDataset(dataset, launder_fn),
+                            batch_size=self.config.get("batch_size", 32),
+                            shuffle=False, num_workers=8,
+                            pin_memory=(self.device == "cuda"),
+                            persistent_workers=True, prefetch_factor=4)
         all_embs = {l: [] for l in all_layers}
-        with torch.no_grad():
+        with torch.inference_mode():
             for batch_x, *_ in tqdm(loader, desc="Extracting embeddings"):
-                if launder_fn is not None:
-                    batch_x = launder_fn(batch_x)
+                batch_x = batch_x.to(self.device, non_blocking=True)
                 for l, emb in self.frontend.mean_pool(self.frontend(batch_x)).items():
                     all_embs[l].append(emb.cpu().numpy())
         result = {l: np.concatenate(v, axis=0) for l, v in all_embs.items()}
