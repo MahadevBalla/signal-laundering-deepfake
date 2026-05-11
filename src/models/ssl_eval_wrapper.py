@@ -87,7 +87,11 @@ class SSLEvalWrapper:
                 f"Weights not found: {weights_path}\n"
                 f"Train first: python train_ssl_backend.py --model {self.config['model_type']} {hint}"
             )
-        self.backend.load_state_dict(torch.load(weights_path, map_location=self.device, weights_only=True))
+        ckpt = torch.load(weights_path, map_location=self.device, weights_only=True)
+        # Strip torch.compile() prefix if present in checkpoint keys.
+        prefix = "_orig_mod."
+        ckpt = {(k[len(prefix):] if k.startswith(prefix) else k): v for k, v in ckpt.items()}
+        self.backend.load_state_dict(ckpt)
         self.backend.eval()
         self._weights_loaded = True
         print(f"[{self.config['model_type']}|{self._tag()}] Loaded {weights_path}")
