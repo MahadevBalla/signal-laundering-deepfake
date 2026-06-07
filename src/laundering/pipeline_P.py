@@ -71,7 +71,8 @@ def stage_P3(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
         output="sos",
     )
     wav = sosfilt(sos, wav).astype(np.float32)
-    rng = np.random.default_rng(seed=42)
+    utt_seed = int(np.abs(wav[: min(256, len(wav))]).sum() * 1e6) % (2**31)
+    rng = np.random.default_rng(seed=utt_seed)
     return add_noise_at_snr(wav, load_noise(p.get("noise_dir"), rng), p["snr_db"])
 
 

@@ -21,7 +21,11 @@ def stage_N2(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
     """Simulate packet loss and narrowband low-pass filtering."""
     frame_len = int(sr * p["frame_ms"] / 1000)
     n_frames = len(wav) // frame_len
-    rng = np.random.default_rng(seed=42)
+
+    # Derive utterance-specific seed so each utterance gets a different
+    # corruption realization while remaining fully reproducible across runs.
+    utt_seed = int(np.abs(wav[: min(256, len(wav))]).sum() * 1e6) % (2**31)
+    rng = np.random.default_rng(seed=utt_seed)
     drop = rng.random(n_frames) < p["plr"]
 
     out = wav.copy()
@@ -41,7 +45,8 @@ def stage_N2(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
 
 def stage_N3(wav: np.ndarray, sr: int, p: dict) -> np.ndarray:
     """Add background noise at a target SNR level."""
-    rng = np.random.default_rng(seed=42)
+    utt_seed = int(np.abs(wav[: min(256, len(wav))]).sum() * 1e6) % (2**31)
+    rng = np.random.default_rng(seed=utt_seed)
     noise = load_noise(p.get("noise_dir"), rng)
     return add_noise_at_snr(wav, noise, p["snr_db"])
 

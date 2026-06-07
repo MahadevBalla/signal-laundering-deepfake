@@ -187,8 +187,11 @@ def evaluate_scores(
 # Framework-level metrics
 def compute_aurc(eer_by_depth: dict[int, float]) -> float:
     """
-    AURC = (1/K+1) Σ EER(k) over k=0..K at fixed Medium strength.
-    Lower = more robust.
+    Mean AURC = (1/K+1) Σ EER(k) over k=0..K at fixed Medium strength.
+
+    SUPPLEMENTARY METRIC ONLY. Sensitive to the number of sampled depth
+    points and not comparable across experiments with different depth counts.
+    Use compute_aurc_trap as the primary reported AURC.
     """
     depths = sorted(eer_by_depth)
     return float(np.mean([eer_by_depth[k] for k in depths]))
@@ -196,7 +199,14 @@ def compute_aurc(eer_by_depth: dict[int, float]) -> float:
 
 def compute_aurc_trap(eer_by_depth: dict[int, float]) -> float:
     """
-    Trapezoidal AURC - more precise when EER changes non-linearly with depth.
+    Trapezoidal AURC (primary metric).
+
+    AURC = (1/K) ∫_0^K EER(k) dk, approximated via the trapezoid rule.
+    Normalised by the depth range K = max(depths) - min(depths) so the
+    result is invariant to the number of sampled depth points and directly
+    comparable across experiments. Lower = more robust.
+
+    Reference: analogous to AUROC trapezoidal convention.
     """
     depths = sorted(eer_by_depth)
     eers = [eer_by_depth[k] for k in depths]
@@ -250,3 +260,56 @@ def compute_collapse_strength(
         if s in eer_by_strength and eer_by_strength[s] >= tau:
             return s
     return None
+
+
+def compute_degradation_rate(eer_by_depth: dict[int, float]) -> float | None:
+    """
+    DR = linear slope of EER(k) versus laundering depth k.
+
+    Higher positive slope means faster performance degradation per laundering
+    stage. Returns None when fewer than two depths are available.
+    """
+    if len(eer_by_depth) < 2:
+        return None
+    depths = np.array(sorted(eer_by_depth), dtype=float)
+    eers = np.array([eer_by_depth[int(k)] for k in depths], dtype=float)
+    return float(np.polyfit(depths, eers, deg=1)[0])
+
+
+def compute_eer_amplification_factor(eer_by_depth: dict[int, float]) -> float | None:
+    """
+    EAF = EER(k=3) / EER(k=0).
+
+    Returns None if either required endpoint is missing or the clean baseline is
+    zero, because the ratio would be undefined.
+    """
+    if 0 not in eer_by_depth or 3 not in eer_by_depth:
+        return None
+    baseline = float(eer_by_depth[0])
+    if baseline == 0.0:
+        return None
+    return float(eer_by_depth[3] / baseline)
+
+
+def compute_relative_collapse_depth(
+    eer_by_depth: dict[int, float],
+    tau: float | None = None,
+    relative_factor: float = 2.0,
+) -> float:
+    """
+    kc* = collapse depth normalized to the observed depth range.
+
+    The collapse threshold is relative to the clean baseline by default, just
+    like kc: tau = relative_factor * EER(k=0). The returned value is kc divided
+    by max depth, making collapse timing easier to compare across experiments.
+    Returns inf if no collapse occurs.
+    """
+    if not eer_by_depth:
+        return float("inf")
+    kc = compute_collapse_depth(eer_by_depth, tau=tau, relative_factor=relative_factor)
+    if kc == float("inf"):
+        return float("inf")
+    max_depth = max(eer_by_depth)
+    if max_depth == 0:
+        return 0.0
+    return float(kc / max_depth)

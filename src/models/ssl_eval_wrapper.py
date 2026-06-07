@@ -39,6 +39,21 @@ class _LaunderedDataset(torch.utils.data.Dataset):
         return wav, utt_id, src, key
 
 
+def _load_state_dict_compat(weights_path, device):
+    """Load checkpoint and strip torch.compile() wrapper prefix if present."""
+    state = torch.load(weights_path, map_location=device, weights_only=True)
+    if not isinstance(state, dict):
+        return state
+
+    has_orig_mod = any(k.startswith("_orig_mod.") for k in state.keys())
+    if has_orig_mod:
+        state = {
+            (k[len("_orig_mod.") :] if k.startswith("_orig_mod.") else k): v
+            for k, v in state.items()
+        }
+    return state
+
+
 class SSLEvalWrapper:
     """Run evaluation for SSL models with FFN, AASIST, or RawNet2 backends."""
 

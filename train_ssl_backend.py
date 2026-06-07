@@ -60,7 +60,7 @@ def _run_epoch(backend, frontend, loader, optimizer, criterion, device, mode, la
     with ctx:
         for batch_x, _ids, _srcs, keys in tqdm(loader, desc="train" if train else "dev  ", leave=False):
             batch_x = batch_x.to(device, non_blocking=True)
-            with torch.inference_mode():
+            with torch.no_grad():
                 layer_states = frontend(batch_x)
             labels = torch.tensor([LABEL_MAP[k] for k in keys], dtype=torch.long, device=device)
             logits = backend(layer_states[layer]) if (mode == "single" and backend_type == "ffn") else backend(layer_states)
@@ -181,7 +181,7 @@ def main() -> None:
         if dev_loss < best_dev_loss:
             best_dev_loss = dev_loss
             patience_counter = 0
-            torch.save(backend.state_dict(), save_path)
+            torch.save(getattr(backend, "_orig_mod", backend).state_dict(), save_path)
             print(f"  -> saved {save_path}")
         else:
             patience_counter += 1
@@ -190,10 +190,12 @@ def main() -> None:
                 print(f"[EARLY STOP] epoch {epoch}")
                 break
 
-    if hasattr(backend, "get_layer_weights"):
-        backend.load_state_dict(torch.load(save_path, map_location=device, weights_only=True))
+    backend_for_io = getattr(backend, "_orig_mod", backend)
+
+    if hasattr(backend_for_io, "get_layer_weights"):
+        backend_for_io.load_state_dict(torch.load(save_path, map_location=device, weights_only=True))
         print("\nLayer weights:")
-        for l, wt in sorted(backend.get_layer_weights().items()):
+        for l, wt in sorted(backend_for_io.get_layer_weights().items()):
             print(f"  Layer {l:2d}: {wt:.4f}  {'|' * max(1, int(wt * 60))}")
 
     print(f"\n[DONE] {save_path}  (best dev_loss={best_dev_loss:.4f})")
