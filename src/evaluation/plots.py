@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from scipy.stats import gaussian_kde
 from pathlib import Path
 
 
@@ -93,34 +94,6 @@ def plot_aurc_comparison(aurc_dict: dict, output_dir: str):
     ax.grid(True, axis="y", alpha=0.3)
 
     out = Path(output_dir) / "aurc_comparison.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"[plots] Saved → {out}")
-
-
-def plot_layer_drift(
-    drift_matrix: np.ndarray, output_dir: str, model_name: str, pipeline: str
-):
-    """
-    Obj 2 (SSL model only) - layer drift heatmap.
-    drift_matrix: shape (num_layers, 4) - rows=layer, cols=depth k=0..3
-    Values = 1 - cosine_similarity(h_l_clean, h_l_laundered)
-    """
-    fig, ax = plt.subplots(figsize=(6, 8))
-    sns.heatmap(
-        drift_matrix,
-        xticklabels=[f"k={k}" for k in range(drift_matrix.shape[1])],
-        annot=True,
-        fmt=".3f",
-        cmap="Blues",
-        ax=ax,
-        cbar_kws={"label": "Representation Drift (1 - cos sim)"},
-    )
-    ax.set_xlabel("Laundering Depth", fontsize=11)
-    ax.set_ylabel("SSL Layer Index", fontsize=11)
-    ax.set_title(f"{model_name} - Layer Drift, Pipeline {pipeline}", fontsize=12)
-
-    out = Path(output_dir) / f"{model_name}_layer_drift_{pipeline}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[plots] Saved → {out}")
@@ -351,7 +324,6 @@ def plot_score_distribution_shift(
         pipeline:   pipeline label (N / M / P)
         strength:   strength label (L / M / H)
     """
-    from scipy.stats import gaussian_kde
 
     depths = sorted(score_data.keys())
     n_panels = len(depths)

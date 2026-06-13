@@ -24,8 +24,9 @@ EXTRA_ARGS="${@:-}"
 
 PROJECT_DIR="/home/gopalpatil/22d0296/projects/signal-laundering-deepfake"
 VENV_DIR="$PROJECT_DIR/.venv"
+CACHE_DIR="$PROJECT_DIR/data/ssl_cache"
 cd "$PROJECT_DIR"
-mkdir -p logs
+mkdir -p logs "$CACHE_DIR"
 
 # ── Spack + Anaconda (matches eval_rawnet2 / eval_aasist) ────────────────────
 source /lustre-flash/apps/spack/share/spack/setup-env.sh
@@ -75,6 +76,7 @@ EOF
 echo "========================================================"
 echo "  Job:     SSL Eval Grid"
 echo "  Task ID: $IDX  |  Model: $MODEL"
+echo "  Cache:   $CACHE_DIR/<frontend>/eval  (clean conditions + CKA baseline)"
 echo "  GPU:     $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
 echo "  Node:    $(hostname)  |  Start: $(date)"
 echo "========================================================"
@@ -87,6 +89,7 @@ python eval_suite.py \
     --depths    0 1 2 3 \
     --run_cka \
     --cka_max_eval 1000 \
+    --cache_dir "$CACHE_DIR" \
     $EXTRA_ARGS
 
 echo "========================================================"

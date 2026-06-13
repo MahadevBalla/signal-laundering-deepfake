@@ -15,6 +15,15 @@ Backends (--backend):
 Training: Adam lr=1e-4, batch=32, CE loss, 50 epochs,
 early stopping patience=10 on dev loss.
 
+SSL frontend caching:
+  The frontend is frozen, so its output for a given (model, utterance,
+  extract_layers) is identical on every epoch. By default, per-utterance
+  sequence outputs are cached under --cache_dir (data/ssl_cache) on first
+  use and reused on subsequent epochs/runs, which removes the SSL forward
+  pass from the training loop after the first epoch. Disable with
+  --no_cache if you want every epoch to recompute from scratch (e.g. for
+  timing comparisons).
+
 Usage:
     python train_ssl_backend.py --model wav2vec2 --mode single --layer 3
     python train_ssl_backend.py --model wav2vec2 --mode weighted --backend ffn
@@ -33,6 +42,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.models.ssl_frontend import SSLFrontend
+from src.models.embedding_cache import EmbeddingCache
 from src.models.dataset import WavDataset
 from src.models.backends import (
     FFNBackend,
@@ -52,16 +62,18 @@ hf_logging.set_verbosity_error()
 LABEL_MAP = {"bonafide": 0, "spoof": 1}
 
 
-def _run_epoch(backend, frontend, loader, optimizer, criterion, device, mode, layer, backend_type, train):
+def _run_epoch(backend, frontend, loader, optimizer, criterion, device, mode, layer, backend_type, train, use_cache):
     """Run one training or validation epoch and return loss/accuracy."""
     backend.train(train)
     total_loss = correct = total = 0
     ctx = torch.enable_grad() if train else torch.no_grad()
     with ctx:
-        for batch_x, _ids, _srcs, keys in tqdm(loader, desc="train" if train else "dev  ", leave=False):
+        for batch_x, ids, _srcs, keys in tqdm(loader, desc="train" if train else "dev  ", leave=False):
             batch_x = batch_x.to(device, non_blocking=True)
             with torch.no_grad():
-                layer_states = frontend(batch_x)
+                layer_states = (
+                    frontend.forward_with_ids(batch_x, list(ids)) if use_cache else frontend(batch_x)
+                )
             labels = torch.tensor([LABEL_MAP[k] for k in keys], dtype=torch.long, device=device)
             logits = backend(layer_states[layer]) if (mode == "single" and backend_type == "ffn") else backend(layer_states)
             loss = criterion(logits, labels)
@@ -93,6 +105,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max_train",  type=int,   default=None)
     p.add_argument("--max_dev",    type=int,   default=None)
     p.add_argument("--dry_run",    action="store_true")
+    p.add_argument("--cache_dir",  default="data/ssl_cache",
+                   help="Directory for cached frozen-SSL sequence embeddings (clean inputs only).")
+    p.add_argument("--no_cache",   action="store_true",
+                   help="Disable embedding caching; recompute frontend output every batch.")
     return p.parse_args()
 
 
@@ -120,10 +136,23 @@ def main() -> None:
           + (f"  layer={args.layer}" if args.mode == "single" else ""))
 
     extract = [args.layer] if args.mode == "single" else list(range(args.num_layers))
-    frontend = SSLFrontend(model_type=args.model, extract_layers=extract, device=device)
-    frontend.eval()
-    for p in frontend.parameters():
-        p.requires_grad_(False)
+
+    use_cache = not args.no_cache
+    train_cache = EmbeddingCache(args.cache_dir, args.model, "train") if use_cache else None
+    dev_cache   = EmbeddingCache(args.cache_dir, args.model, "dev")   if use_cache else None
+    if use_cache:
+        print(f"[CACHE] {args.cache_dir}/{args.model}/{{train,dev}} "
+              f"(NOTE: cache is keyed by extract_layers subset; --mode single with a "
+              f"different --layer reuses the same per-utterance files)")
+
+    # Training uses one frontend instance for train/dev each, since the cache
+    # object differs per split. extract_layers is identical for both.
+    frontend_train = SSLFrontend(model_type=args.model, extract_layers=extract, device=device, cache=train_cache)
+    frontend_dev   = SSLFrontend(model_type=args.model, extract_layers=extract, device=device, cache=dev_cache)
+    for fe in (frontend_train, frontend_dev):
+        fe.eval()
+        for p in fe.parameters():
+            p.requires_grad_(False)
 
     if args.backend == "ffn":
         if args.mode == "single":
@@ -174,9 +203,13 @@ def main() -> None:
     patience_counter = 0
 
     for epoch in range(1, args.epochs + 1):
-        train_loss, train_acc = _run_epoch(backend, frontend, train_loader, optimizer, criterion, device, args.mode, args.layer, args.backend, True)
-        dev_loss,   dev_acc   = _run_epoch(backend, frontend, dev_loader,   None,      criterion, device, args.mode, args.layer, args.backend, False)
+        train_loss, train_acc = _run_epoch(backend, frontend_train, train_loader, optimizer, criterion, device, args.mode, args.layer, args.backend, True, use_cache)
+        dev_loss,   dev_acc   = _run_epoch(backend, frontend_dev,   dev_loader,   None,      criterion, device, args.mode, args.layer, args.backend, False, use_cache)
         print(f"Epoch {epoch:3d}/{args.epochs}  train={train_loss:.4f}/{train_acc:.4f}  dev={dev_loss:.4f}/{dev_acc:.4f}")
+        if use_cache:
+            t_stats, d_stats = frontend_train.cache.stats(), frontend_dev.cache.stats()
+            print(f"  [CACHE] train hits={t_stats['hits']} misses={t_stats['misses']}  "
+                  f"dev hits={d_stats['hits']} misses={d_stats['misses']}")
 
         if dev_loss < best_dev_loss:
             best_dev_loss = dev_loss

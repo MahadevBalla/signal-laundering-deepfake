@@ -4,6 +4,12 @@ This script is the main evaluation entry point. It executes clean and
 laundered conditions, supports resume via a master CSV, and optionally runs
 CKA/cosine representation analysis for SSL-based models.
 
+SSL frontend caching:
+  For SSL models, clean (depth=0) and CKA-baseline frontend passes are
+  cached on disk under --cache_dir (default data/ssl_cache) and reused
+  across runs. Laundered conditions always recompute (laundering changes
+  the input every call). Disable with --no_cache.
+
 Usage:
     python eval_suite.py --model aasist --dry_run
     python eval_suite.py --model wav2vec2 --run_cka
@@ -83,6 +89,10 @@ def parse_args():
     p.add_argument("--run_cka",     action="store_true")
     p.add_argument("--cka_max_eval", type=int, default=1000)
     p.add_argument("--no_resume",   action="store_true")
+    p.add_argument("--cache_dir",   default="data/ssl_cache",
+                   help="Directory for cached frozen-SSL embeddings (SSL models only, clean passes).")
+    p.add_argument("--no_cache",    action="store_true",
+                   help="Disable SSL embedding caching (SSL models only).")
     return p.parse_args()
 
 
@@ -480,6 +490,11 @@ def generate_summary_plots(results, model_name, output_dir, log):
 
     clean_rows = [r for r in results if int(r["depth"]) == 0]
     clean_eer = _eer(clean_rows[0]) if clean_rows else None
+    if clean_eer is None:
+        log.warning(
+            "[SUMMARY] No clean (depth=0) row found in master_results.csv — "
+            "collapse curves will be missing k=0 and AURC will start from k=1."
+        )
 
     collapse_data = {}
     for r in results:
@@ -663,7 +678,14 @@ def main():
     if weights_path:
         log.info(f"Weights: {weights_path}")
 
-    model = get_model(args.model, config_path=CONFIGS[args.model], data_root=args.data_root)
+    model_kwargs = dict(config_path=CONFIGS[args.model], data_root=args.data_root)
+    if args.model in SSL_MODELS:
+        model_kwargs["cache_dir"] = args.cache_dir
+        model_kwargs["use_cache"] = not args.no_cache
+        if not args.no_cache:
+            log.info(f"[CACHE] {args.cache_dir}/{args.model.split('_')[0]}/eval (clean conditions + CKA baseline only)")
+
+    model = get_model(args.model, **model_kwargs)
     model.load_weights(weights_path)
     engine = LaunderingEngine(args.config_dir)
 

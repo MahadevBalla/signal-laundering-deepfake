@@ -17,6 +17,14 @@
 # train_ssl_backend.py internally for each layer with --mode single.
 # Running as a 3-task array keeps each model's 12 layers on one GPU.
 #
+# SSL frontend embedding cache:
+#   layer_sweep.py pre-warms data/ssl_cache/<model>/{train,dev} with all 12
+#   transformer layers in one pass before training any per-layer probe, so
+#   each of the 12 train_ssl_backend.py --mode single --layer L subprocess
+#   calls hits the cache instead of recomputing the SSL forward pass. This
+#   cache is also reused later by train_ssl_backends.sbatch for the same
+#   SSL model (weighted mode requests the same 12 layers).
+#
 # Array tasks:
 #   0 -> wav2vec2    (trains layers 0-11 sequentially, ~7h total)
 #   1 -> hubert      (trains layers 0-11 sequentially, ~7h total)
@@ -26,6 +34,7 @@
 #   models/<model>_ffn_layer{0-11}.pth
 #   outputs/sweep/<model>/<model>_layer_sweep.json
 #   outputs/sweep/<model>/<model>_layer_eer.png
+#   data/ssl_cache/<model>/{train,dev}/<utt_id>.pt
 #
 # Submit all 3 models:
 #   sbatch slurm/layer_sweep.sbatch
@@ -50,6 +59,7 @@ LAYER_SWEEP_EXTRA_ARGS=""
 DATA_ROOT="data/LA"
 
 PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
+CACHE_DIR="$PROJECT_DIR/data/ssl_cache"
 cd "$PROJECT_DIR"
 
 if [ ! -d "logs" ]; then
@@ -72,6 +82,8 @@ if [ ! -f "$DATA_ROOT/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.
     echo "ERROR: missing $DATA_ROOT/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
     exit 1
 fi
+
+mkdir -p "$CACHE_DIR"
 
 module purge
 module load python/3.11.14        # adjust to your HPC module name
@@ -98,6 +110,7 @@ fi
 echo "========================================================"
 echo "  Job:     Layer Sweep"
 echo "  Task ID: $IDX  ->  $MODEL  (layers 0-11)"
+echo "  Cache:   $CACHE_DIR/$MODEL/{train,dev}"
 echo "  GPU:     $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
 echo "  Node:    $(hostname)"
 echo "  Start:   $(date)"
@@ -110,6 +123,7 @@ python layer_sweep.py \
     --epochs     20 \
     --lr         1e-4 \
     --batch_size 32 \
+    --cache_dir  "$CACHE_DIR" \
     $LAYER_SWEEP_EXTRA_ARGS
 
 echo "========================================================"

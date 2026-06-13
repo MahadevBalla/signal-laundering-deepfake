@@ -2,6 +2,15 @@
 
 This wrapper exposes the same `load_weights()` and `evaluate()` style used by
 the waveform wrappers, so `eval_suite.py` can treat all models uniformly.
+
+SSL frontend caching:
+  When `launder_fn is None` (clean / depth=0 conditions, including the CKA
+  baseline split), per-utterance frozen-SSL sequence outputs are cached on
+  disk under `cache_dir/<model_type>/eval/<utt_id>.pt` and reused across
+  `evaluate()` and `extract_all_layers()` calls and across repeated runs.
+  Laundered conditions (`launder_fn is not None`) never use the cache, since
+  laundering changes the waveform per-sample and the SSL output is no longer
+  reusable.
 """
 
 from __future__ import annotations
@@ -17,6 +26,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.models.ssl_frontend import SSLFrontend
+from src.models.embedding_cache import EmbeddingCache
 from src.models.dataset import WavDataset
 from src.models.backends import FFNBackend, WeightedAggregationBackend, SSLWithAASIST, SSLWithRawNet2
 from src.evaluation.metrics import evaluate_scores
@@ -57,8 +67,15 @@ def _load_state_dict_compat(weights_path, device):
 class SSLEvalWrapper:
     """Run evaluation for SSL models with FFN, AASIST, or RawNet2 backends."""
 
-    def __init__(self, config_path, data_root, backend_mode="weighted", layer=None, backend_type="ffn"):
-        """Build frontend/backend modules from config and backend settings."""
+    def __init__(self, config_path, data_root, backend_mode="weighted", layer=None, backend_type="ffn",
+                 cache_dir: str | None = "data/ssl_cache", use_cache: bool = True):
+        """Build frontend/backend modules from config and backend settings.
+
+        Args:
+            cache_dir: base directory for the frozen-SSL embedding cache
+                (used only for clean / launder_fn=None passes).
+            use_cache: set False to disable caching entirely.
+        """
         with open(config_path) as f:
             self.config = yaml.safe_load(f)
         if backend_mode not in ("single", "weighted"):
@@ -80,7 +97,15 @@ class SSLEvalWrapper:
         num_layers = len(self.config.get("extract_layers", list(range(12))))
         extract = [layer] if backend_mode == "single" else self.config.get("extract_layers", list(range(num_layers)))
 
-        self.frontend = SSLFrontend(model_type=self.config["model_type"], extract_layers=extract, device=self.device)
+        self.use_cache = use_cache
+        self.cache_dir = cache_dir
+        # Cache is keyed by (model_type, "eval") and shared across all
+        # backend_mode/backend_type combinations for this SSL model, since
+        # the cached payload is the raw frontend layer output (pre-backend).
+        eval_cache = EmbeddingCache(cache_dir, self.config["model_type"], "eval") if use_cache else None
+
+        self.frontend = SSLFrontend(model_type=self.config["model_type"], extract_layers=extract,
+                                     device=self.device, cache=eval_cache)
 
         if backend_type == "ffn":
             self.backend = FFNBackend(embed_dim=embed_dim, dropout=0.2) if backend_mode == "single" else WeightedAggregationBackend(num_layers=num_layers, embed_dim=embed_dim, dropout=0.2)
@@ -123,6 +148,12 @@ class SSLEvalWrapper:
             return self.backend(layer_states[self.layer])
         return self.backend(layer_states)
 
+    def _frontend_forward(self, batch_x, utt_ids, launder_fn):
+        """Run the frontend, using the embedding cache only for clean (launder_fn=None) passes."""
+        if launder_fn is None and self.use_cache:
+            return self.frontend.forward_with_ids(batch_x, list(utt_ids))
+        return self.frontend(batch_x)
+
     def evaluate(self, output_dir="outputs", launder_fn=None, max_eval=None):
         """Evaluate model scores on eval split and compute EER/min-tDCF."""
         if not self._weights_loaded:
@@ -143,9 +174,13 @@ class SSLEvalWrapper:
         with torch.inference_mode():
             for batch_x, utt_ids, srcs, keys in tqdm(loader, desc=f"{self.config['model_type']}|{self._tag()}"):
                 batch_x = batch_x.to(self.device, non_blocking=True)
-                scores = self._forward(self.frontend(batch_x))[:, 0].cpu().numpy()
+                layer_states = self._frontend_forward(batch_x, utt_ids, launder_fn)
+                scores = self._forward(layer_states)[:, 0].cpu().numpy()
                 fname_list.extend(utt_ids); score_list.extend(scores.tolist())
                 src_list.extend(srcs); key_list.extend(keys)
+        if launder_fn is None and self.use_cache:
+            stats = self.frontend.cache.stats()
+            print(f"  [CACHE] eval hits={stats['hits']} misses={stats['misses']}")
         score_path = out / "eval_scores.txt"
         with open(score_path, "w") as fh:
             for fn, sc, src, key in zip(fname_list, score_list, src_list, key_list):
@@ -173,10 +208,14 @@ class SSLEvalWrapper:
                             persistent_workers=True, prefetch_factor=4)
         all_embs = {l: [] for l in all_layers}
         with torch.inference_mode():
-            for batch_x, *_ in tqdm(loader, desc="Extracting embeddings"):
+            for batch_x, utt_ids, *_ in tqdm(loader, desc="Extracting embeddings"):
                 batch_x = batch_x.to(self.device, non_blocking=True)
-                for l, emb in self.frontend.mean_pool(self.frontend(batch_x)).items():
+                layer_states = self._frontend_forward(batch_x, utt_ids, launder_fn)
+                for l, emb in self.frontend.mean_pool(layer_states).items():
                     all_embs[l].append(emb.cpu().numpy())
+        if launder_fn is None and self.use_cache:
+            stats = self.frontend.cache.stats()
+            print(f"  [CACHE] extract_all_layers hits={stats['hits']} misses={stats['misses']}")
         result = {l: np.concatenate(v, axis=0) for l, v in all_embs.items()}
         if save_embeddings:
             import pickle

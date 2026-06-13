@@ -9,6 +9,17 @@ The paper's key finding: lower layers (roughly 1-6 for base models) are more
 discriminative than upper layers. This sweep tells you which layer to use for
 laundering experiments before committing to full eval.
 
+SSL frontend caching:
+  Each of the 12 per-layer training runs would otherwise recompute the same
+  frozen SSL forward pass independently. To avoid that, this script first
+  pre-warms the embedding cache (data/ssl_cache/<model>/{train,dev}) with
+  ALL 12 transformer layers in one pass over the dataset, then every
+  per-layer `train_ssl_backend.py --mode single --layer L` subprocess hits
+  the cache instead of recomputing the SSL frontend. Subsequent full sweeps
+  (or re-runs after --dry_run) reuse the same cache.
+
+  Disable with --no_cache (every subprocess recomputes from scratch).
+
 Outputs:
   models/<model>_ffn_layer{l}.pth   (one per layer)
   outputs/sweep/<model>_layer_sweep.json
@@ -29,7 +40,13 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import torch
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
+from src.models.ssl_frontend import SSLFrontend
+from src.models.embedding_cache import EmbeddingCache
+from src.models.dataset import WavDataset
 
 def parse_args() -> argparse.Namespace:
     """Parse arguments for single-model layer sweep."""
@@ -49,7 +66,45 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip_trained", action="store_true", default=True,
                    help="Skip training if weights already exist (default: True).")
     p.add_argument("--no_skip_trained", dest="skip_trained", action="store_false")
+    p.add_argument("--cache_dir",  default="data/ssl_cache",
+                   help="Directory for cached frozen-SSL sequence embeddings.")
+    p.add_argument("--no_cache",   action="store_true",
+                   help="Disable embedding caching (passed through to train_ssl_backend.py, "
+                        "and skips the pre-warm pass below).")
     return p.parse_args()
+
+
+def _prewarm_cache(args: argparse.Namespace) -> None:
+    """Run one forward pass over train+dev to populate the SSL embedding cache
+    with all 12 transformer layers, so every per-layer subprocess hits the cache.
+    """
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    all_layers = list(range(12))
+    max_train = min(args.max_train or 200, 200) if args.dry_run else args.max_train
+    max_dev = 200 if args.dry_run else None
+
+    for split, max_n in (("train", max_train), ("dev", max_dev)):
+        cache = EmbeddingCache(args.cache_dir, args.model, split)
+        frontend = SSLFrontend(model_type=args.model, extract_layers=all_layers, device=device, cache=cache)
+        frontend.eval()
+        for p in frontend.parameters():
+            p.requires_grad_(False)
+
+        ds = WavDataset(Path(args.data_root), "LA", split=split, max_len=64000)
+        if max_n:
+            ds.trials = ds.trials[:max_n]
+        loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=8)
+
+        print(f"[CACHE PREWARM] {args.model} {split}: {len(ds)} utterances, layers={all_layers}")
+        with torch.no_grad():
+            for batch_x, ids, _srcs, _keys in tqdm(loader, desc=f"prewarm-{split}"):
+                batch_x = batch_x.to(device, non_blocking=True)
+                frontend.forward_with_ids(batch_x, list(ids))
+        stats = cache.stats()
+        print(f"[CACHE PREWARM] {args.model} {split}: hits={stats['hits']} misses={stats['misses']}")
+        frontend.remove_hooks()
+        del frontend
 
 
 def _train_layer(args: argparse.Namespace, layer: int) -> None:
@@ -61,11 +116,14 @@ def _train_layer(args: argparse.Namespace, layer: int) -> None:
         "--epochs", str(args.epochs),
         "--lr", str(args.lr),
         "--batch_size", str(args.batch_size),
+        "--cache_dir", args.cache_dir,
     ]
     if args.max_train:
         cmd += ["--max_train", str(args.max_train)]
     if args.dry_run:
         cmd += ["--dry_run"]
+    if args.no_cache:
+        cmd += ["--no_cache"]
     subprocess.run(cmd, check=True)
 
 
@@ -91,9 +149,9 @@ def _eval_layer(args: argparse.Namespace, layer: int) -> float:
 def _plot(results: dict[int, float], model: str, out_dir: Path) -> None:
     """Plot bar chart of EER by transformer layer for one SSL model."""
     layers = sorted(results)
-    eers   = [results[l] for l in layers]
+    eers   = [results[layer] for layer in layers]
     best   = min(results, key=results.get)
-    colors = ["#e05c5c" if l == best else "#4b8bbe" for l in layers]
+    colors = ["#e05c5c" if layer == best else "#4b8bbe" for layer in layers]
 
     fig, ax = plt.subplots(figsize=(12, 4))
     bars = ax.bar(layers, eers, color=colors, edgecolor="white")
@@ -118,6 +176,9 @@ def main() -> None:
     out_dir = Path(f"outputs/sweep/{args.model}")
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / f"{args.model}_layer_sweep.json"
+
+    if not args.no_cache:
+        _prewarm_cache(args)
 
     # Resume: load existing results
     results: dict[int, float] = {}
@@ -148,7 +209,7 @@ def main() -> None:
         with open(json_path, "w") as f:
             json.dump(results, f, indent=2)
 
-    valid = {l: v for l, v in results.items() if v == v}  # drop NaN
+    valid = {layer: v for layer, v in results.items() if v == v}  # drop NaN
     if not valid:
         print("[ERROR] No valid results.")
         return
@@ -156,13 +217,13 @@ def main() -> None:
     best = min(valid, key=valid.get)
     print(f"\n{'Layer':>6}  {'EER (%)':>10}")
     print("─" * 22)
-    for l in sorted(results):
-        marker = "  <- best" if l == best else ""
-        print(f"{l:>6}  {results[l]:>10.4f}{marker}")
+    for layer in sorted(results):
+        marker = "  <- best" if layer == best else ""
+        print(f"{layer:>6}  {results[layer]:>10.4f}{marker}")
 
-    print(f"\nNext step — train weighted model:")
+    print("\nNext step — train weighted model:")
     print(f"  python train_ssl_backend.py --model {args.model} --mode weighted")
-    print(f"Then run laundering eval:")
+    print("Then run laundering eval:")
     print(f"  python eval_suite.py --model {args.model} [--run_cka]")
 
     _plot(results, args.model, out_dir)

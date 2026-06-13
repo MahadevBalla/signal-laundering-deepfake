@@ -21,18 +21,28 @@ _AASIST_CONFIGS = {
     "hubert-rawnet2": "external/aasist/config/RawNet2_baseline.conf",
 }
 
+# Kwargs only SSLEvalWrapper understands (caching options). Stripped before
+# passing to non-SSL wrappers, which don't accept them.
+_SSL_ONLY_KWARGS = ("cache_dir", "use_cache")
+
 
 def get_model(name: str, **kwargs: Any):
     """Instantiate and return a model wrapper for a registry key."""
     if name in ("aasist", "aasist-l"):
+        for k in _SSL_ONLY_KWARGS:
+            kwargs.pop(k, None)
         kwargs.setdefault("config_path", _AASIST_CONFIGS[name])
         return AASISTWrapper(**kwargs)
 
     if name == "rawnet2":
+        for k in _SSL_ONLY_KWARGS:
+            kwargs.pop(k, None)
         kwargs.setdefault("config_path", _AASIST_CONFIGS["rawnet2"])
         return RawNet2Wrapper(**kwargs)
 
     if name == "hubert-rawnet2":
+        for k in _SSL_ONLY_KWARGS:
+            kwargs.pop(k, None)
         kwargs.setdefault("config_path", _AASIST_CONFIGS["hubert-rawnet2"])
         return HuBERTRawNet2Wrapper(**kwargs)
 
