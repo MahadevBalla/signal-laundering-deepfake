@@ -2,7 +2,7 @@
 #SBATCH --job-name=stab_w2v2_aaist_%a
 #SBATCH --partition=general
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=07:00:00
 #SBATCH --output=logs/stab_%a_%j.out
@@ -105,27 +105,28 @@ echo "  Start:        $(date)"
 echo "========================================================"
 
 python train_stab.py \
-    --model         "$MODEL" \
-    --backend       "$BACKEND" \
-    --init_weights  "$INIT_WEIGHTS" \
-    --pipelines     N \
-    --depths        1 2 3 \
-    --strength      M \
-    --eval_depth    3 \
-    --lambda_stab   "$LAMBDA_STAB" \
-    --lambda_clean  0.5 \
-    --epochs        50 \
-    --patience      10 \
-    --eval_every    5 \
-    --lr            1e-4 \
-    --weight_decay  1e-4 \
-    --batch_size    32 \
-    --embed_dim     768 \
-    --num_layers    12 \
-    --data_root     data/LA \
-    --cache_dir     "$CACHE_DIR" \
-    --output_dir    outputs/stab_training \
-    --run_id        "$RUN_ID" \
+    --model              "$MODEL" \
+    --backend            "$BACKEND" \
+    --init_weights       "$INIT_WEIGHTS" \
+    --pipelines          N \
+    --depths             1 2 3 \
+    --strength           M \
+    --eval_depth         3 \
+    --lambda_stab        "$LAMBDA_STAB" \
+    --lambda_clean       0.5 \
+    --epochs             50 \
+    --patience           10 \
+    --eval_every         5 \
+    --lr                 1e-4 \
+    --weight_decay       1e-4 \
+    --batch_size         32 \
+    --embed_dim          768 \
+    --num_layers         12 \
+    --data_root          data/LA \
+    --precomputed_root   data/precomputed \
+    --cache_dir          "$CACHE_DIR" \
+    --output_dir         outputs/stab_training \
+    --run_id             "$RUN_ID" \
     --resume
 
 echo "========================================================"

@@ -19,3 +19,5 @@ req.txt
 
 # Backup files
 *.bak
+
+scripts/plot_combined_det.py

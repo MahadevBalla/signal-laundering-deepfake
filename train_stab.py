@@ -105,7 +105,6 @@ if str(AASIST_ROOT) not in sys.path:
 
 from src.models.ssl_frontend import SSLFrontend
 from src.models.embedding_cache import EmbeddingCache
-from src.models.dataset import WavDataset
 from src.models.backends import (
     WeightedAggregationBackend,
     SSLWithAASIST,
@@ -114,6 +113,7 @@ from src.models.backends import (
 )
 from src.laundering import LaunderingEngine
 from src.evaluation.metrics import compute_eer
+from src.models.dataset import WavDataset, PairedLaunderDataset
 
 import warnings
 
@@ -150,7 +150,7 @@ _REGISTRY_KEY: dict[tuple[str, str], str] = {
 class TrainConfig:
     """Immutable per-run training settings passed into train_epoch."""
 
-    engine: LaunderingEngine
+    engine: LaunderingEngine | None  # None when using PairedLaunderDataset
     pipelines: list[str]
     depths: list[int]
     strength: str
@@ -280,6 +280,19 @@ def parse_args() -> argparse.Namespace:
         help="Save SSL layer weight snapshot every N epochs.",
     )
 
+    # Precomputed laundering (Patch 1)
+    p.add_argument(
+        "--precomputed_root",
+        default=None,
+        help=(
+            "Root directory containing precomputed laundering datasets produced "
+            "by precompute_laundering.py. Expected sub-directories: "
+            "<PIPELINE>_d<DEPTH>_M/ (e.g. N_d1_M, N_d2_M, N_d3_M). "
+            "When set, online laundering is fully disabled and the "
+            "LaunderingEngine is not instantiated."
+        ),
+    )
+
     # Misc
     p.add_argument(
         "--resume",
@@ -403,7 +416,7 @@ def _num_workers() -> int:
     return min(8, os.cpu_count() or 1)
 
 
-def train_epoch(
+def train_epoch(   
     backend: nn.Module,
     frontend: SSLFrontend,
     loader: DataLoader,
@@ -418,29 +431,54 @@ def train_epoch(
     Laundering parameters are bundled in cfg (TrainConfig) rather than passed
     individually, keeping the signature within a manageable parameter count.
 
+    Two data paths are supported:
+
+    Precomputed path (cfg.engine is None):
+        loader yields (clean_wav, laund_wav, utt_id, src, key) 5-tuples from
+        PairedLaunderDataset. clean and laundered correspond to the same
+        utterance by construction, so alignment is guaranteed under shuffle=True.
+
+    Online path (cfg.engine is not None):
+        loader yields the standard WavDataset 4-tuple (clean_wav, utt_id, src, key).
+        A laundering function is sampled per batch and applied on CPU.
+
+    Both paths produce identical downstream code from the SSL forward pass
+    onward, so all loss components (L_bce_laund, L_bce_clean, L_stab) are
+    computed identically.
+
     Returns dict of batch-averaged loss components and laundered accuracy.
     """
     backend.train()
     sum_bce_laund = sum_bce_clean = sum_stab = sum_total = 0.0
     n_correct = n_total = 0
 
-    for batch_x, utt_ids, _srcs, keys in tqdm(loader, desc="train", leave=False):
-        batch_x = batch_x.to(device, non_blocking=True)
+    use_precomputed = cfg.engine is None
+
+    for batch in tqdm(loader, desc="train", leave=False):
+        if use_precomputed:
+            # PairedLaunderDataset — 5-tuple, alignment guaranteed by __getitem__.
+            batch_x, batch_laund_cpu, utt_ids, _srcs, keys = batch
+            batch_x = batch_x.to(device, non_blocking=True)
+            batch_laund = batch_laund_cpu.to(device, non_blocking=True)
+        else:
+            # WavDataset — 4-tuple. Sample condition and launder on CPU.
+            batch_x, utt_ids, _srcs, keys = batch
+            batch_x = batch_x.to(device, non_blocking=True)
+            # Sample laundering condition for this batch uniformly at random.
+            # rng state is checkpointed so the corruption sequence is
+            # reproducible across resumes.
+            pipeline = str(cfg.rng.choice(cfg.pipelines))
+            depth = int(cfg.rng.choice(cfg.depths))
+            launder_fn = cfg.engine.get_batch_fn(pipeline, depth, cfg.strength)
+            # depth >= 1 is guaranteed by _validate_args, so launder_fn is never
+            # None. Laundering runs on CPU (ffmpeg/scipy roundtrips). Output is
+            # always float32 (core.py guarantees this via
+            # torch.from_numpy(...).float()).
+            batch_laund = launder_fn(batch_x.cpu()).to(device, non_blocking=True)
+
         labels = torch.tensor(
             [LABEL_MAP[k] for k in keys], dtype=torch.long, device=device
         )
-
-        # Sample laundering condition for this batch uniformly at random.
-        # rng state is checkpointed so the corruption sequence is reproducible
-        # across resumes.
-        pipeline = str(cfg.rng.choice(cfg.pipelines))
-        depth = int(cfg.rng.choice(cfg.depths))
-        launder_fn = cfg.engine.get_batch_fn(pipeline, depth, cfg.strength)
-        # depth >= 1 is guaranteed by _validate_args, so launder_fn is never None.
-
-        # Laundering runs on CPU (ffmpeg/scipy roundtrips).
-        # Output is always float32 (core.py guarantees this via torch.from_numpy(...).float()).
-        batch_laund = launder_fn(batch_x.cpu()).to(device, non_blocking=True)
 
         with torch.no_grad():
             if cfg.use_cache:
@@ -489,7 +527,7 @@ def evaluate_dev(
     frontend: SSLFrontend,
     loader: DataLoader,
     criterion: nn.Module,
-    engine: LaunderingEngine,
+    engine: LaunderingEngine | None,
     device: str,
     pipeline: str,
     depth: int,
@@ -514,9 +552,16 @@ def evaluate_dev(
     Including it in dev loss would mix regularisation strength (lambda_stab)
     into the checkpoint selection metric, making comparisons across lambda
     sweeps incomparable.
+
+    Two data paths (mirrors train_epoch):
+      Precomputed (engine is None): loader yields 5-tuple from PairedLaunderDataset.
+      Online (engine is not None):  loader yields 4-tuple; laundering applied per batch.
     """
     backend.eval()
-    launder_fn = engine.get_batch_fn(pipeline, depth, strength)
+
+    use_precomputed = engine is None
+    if not use_precomputed:
+        launder_fn = engine.get_batch_fn(pipeline, depth, strength)
 
     sum_loss = n_correct = n_total = 0
     bona_clean_scores: list[float] = []
@@ -524,11 +569,16 @@ def evaluate_dev(
     bona_laund_scores: list[float] = []
     spoof_laund_scores: list[float] = []
 
-    for batch_x, utt_ids, _srcs, keys in tqdm(
-        loader, desc=f"dev ({pipeline} k={depth})", leave=False
-    ):
-        batch_x = batch_x.to(device, non_blocking=True)
-        batch_laund = launder_fn(batch_x.cpu()).to(device, non_blocking=True)
+    for batch in tqdm(loader, desc=f"dev ({pipeline} k={depth})", leave=False):
+        if use_precomputed:
+            batch_x, batch_laund_cpu, utt_ids, _srcs, keys = batch
+            batch_x = batch_x.to(device, non_blocking=True)
+            batch_laund = batch_laund_cpu.to(device, non_blocking=True)
+        else:
+            batch_x, utt_ids, _srcs, keys = batch
+            batch_x = batch_x.to(device, non_blocking=True)
+            batch_laund = launder_fn(batch_x.cpu()).to(device, non_blocking=True)
+
         labels = torch.tensor(
             [LABEL_MAP[k] for k in keys], dtype=torch.long, device=device
         )
@@ -779,7 +829,7 @@ def _build_dataloaders(
     device: str,
     log: logging.Logger,
 ) -> tuple[DataLoader, DataLoader]:
-    """Construct train and dev DataLoaders."""
+    """Construct clean train and dev DataLoaders (online laundering path)."""
     train_ds = WavDataset(data_root, "LA", split="train", max_len=64000)
     dev_ds = WavDataset(data_root, "LA", split="dev", max_len=64000)
     if max_train:
@@ -789,6 +839,91 @@ def _build_dataloaders(
         idx = rng.choice(len(dev_ds.trials), size=max_dev, replace=False)
         dev_ds.trials = [dev_ds.trials[i] for i in sorted(idx)]
     log.info(f"Dataset  train={len(train_ds)}  dev={len(dev_ds)}")
+
+    nw = _num_workers()
+    loader_kw = {
+        "batch_size": batch_size,
+        "num_workers": nw,
+        "pin_memory": (device == "cuda"),
+        "persistent_workers": (nw > 0),
+        "prefetch_factor": (4 if nw > 0 else None),
+    }
+    log.info(f"DataLoader num_workers={nw}")
+    return (
+        DataLoader(train_ds, shuffle=True, **loader_kw),
+        DataLoader(dev_ds, shuffle=False, **loader_kw),
+    )
+
+
+def _build_paired_dataloaders(
+    data_root: Path,
+    precomputed_root: Path,
+    pipelines: list[str],
+    depths: list[int],
+    eval_pipeline: str,
+    eval_depth: int,
+    max_train: int | None,
+    max_dev: int | None,
+    batch_size: int,
+    device: str,
+    seed: int,
+    log: logging.Logger,
+) -> tuple[DataLoader, DataLoader]:
+    """Construct paired (clean + laundered) train and dev DataLoaders.
+
+    Each DataLoader wraps a PairedLaunderDataset so that __getitem__ always
+    returns the clean and laundered waveform for the *same* utterance index.
+    This guarantees alignment under shuffle=True without any external
+    synchronisation between loaders.
+
+    Alignment is verified inside PairedLaunderDataset.__init__; an
+    AssertionError is raised immediately if utterance IDs diverge.
+
+    Train DataLoader: shuffle=True, samples all (pipeline, depth) conditions.
+    Dev DataLoader:   shuffle=False, single fixed (eval_pipeline, eval_depth).
+    """
+    log.info("Building PairedLaunderDataset (train) …")
+    train_ds = PairedLaunderDataset(
+        data_root=data_root,
+        track="LA",
+        precomputed_root=precomputed_root,
+        pipelines=pipelines,
+        depths=depths,
+        split="train",
+        max_len=64000,
+        seed=seed,
+    )
+    if max_train:
+        train_ds.trials = train_ds.trials[:max_train]
+        train_ds._clean_ds.trials = train_ds.trials
+        train_ds._assigned = train_ds._assigned[:max_train]
+        for ds in train_ds._precomp_ds.values():
+            ds.trials = ds.trials[:max_train]
+    log.info(
+        f"  train: {len(train_ds)} utts × {len(train_ds._conditions)} conditions "
+        f"({', '.join(f'{p}/d{d}' for p,d in train_ds._conditions)})"
+    )
+
+    log.info("Building PairedLaunderDataset (dev) …")
+    dev_ds = PairedLaunderDataset(
+        data_root=data_root,
+        track="LA",
+        precomputed_root=precomputed_root,
+        pipelines=[eval_pipeline],
+        depths=[eval_depth],
+        split="dev",
+        max_len=64000,
+        seed=seed,
+    )
+    if max_dev:
+        rng = np.random.default_rng(42)
+        idx = sorted(rng.choice(len(dev_ds.trials), size=max_dev, replace=False))
+        dev_ds.trials = [dev_ds.trials[i] for i in idx]
+        dev_ds._clean_ds.trials = dev_ds.trials
+        dev_ds._assigned = [dev_ds._assigned[i] for i in idx]
+        for ds in dev_ds._precomp_ds.values():
+            ds.trials = [ds.trials[i] for i in idx]
+    log.info(f"  dev:   {len(dev_ds)} utts  condition: ({eval_pipeline}, d={eval_depth})")
 
     nw = _num_workers()
     loader_kw = {
@@ -1005,15 +1140,35 @@ def main() -> None:
     )
 
     # ── Laundering engine + DataLoaders ───────────────────────────────────
-    engine = LaunderingEngine(args.config_dir)
-    train_loader, dev_loader = _build_dataloaders(
-        Path(args.data_root),
-        args.max_train,
-        args.max_dev,
-        args.batch_size,
-        device,
-        log,
-    )
+    # Only instantiate LaunderingEngine when online laundering is needed.
+    if args.precomputed_root is None:
+        engine = LaunderingEngine(args.config_dir)
+        log.info("Laundering: online (LaunderingEngine active)")
+        train_loader, dev_loader = _build_dataloaders(
+            Path(args.data_root),
+            args.max_train,
+            args.max_dev,
+            args.batch_size,
+            device,
+            log,
+        )
+    else:
+        engine = None
+        log.info(f"Laundering: precomputed  root={args.precomputed_root}")
+        train_loader, dev_loader = _build_paired_dataloaders(
+            data_root=Path(args.data_root),
+            precomputed_root=Path(args.precomputed_root),
+            pipelines=args.pipelines,
+            depths=args.depths,
+            eval_pipeline=args.pipelines[0],
+            eval_depth=eval_depth,
+            max_train=args.max_train,
+            max_dev=args.max_dev,
+            batch_size=args.batch_size,
+            device=device,
+            seed=args.seed,
+            log=log,
+        )
 
     # ── Optimiser ─────────────────────────────────────────────────────────
     optimizer = torch.optim.AdamW(
@@ -1089,6 +1244,13 @@ def main() -> None:
     for epoch in range(start_epoch, args.epochs + 1):
         last_epoch = epoch
         t0 = time.time()
+
+        # Rotate per-utterance laundering conditions before each epoch so that
+        # every utterance sees a different (pipeline, depth) each pass, matching
+        # the augmentation diversity of the original per-batch online sampling.
+        # No-op in online mode (WavDataset has no set_epoch).
+        if isinstance(train_loader.dataset, PairedLaunderDataset):
+            train_loader.dataset.set_epoch(epoch)
 
         train_metrics = train_epoch(
             backend,
