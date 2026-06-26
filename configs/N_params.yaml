@@ -2,7 +2,7 @@
 # Use depending on the environment; set it to the actual mount path
 # noise_dir: data/noise/SPIB | /scratch/<your_username>/noise/SPIB
 # Leave null if you want the built-in white noise fallback:
-noise_dir: null
+noise_dir: data/noise/SPIB
 
 stages:
   N1:

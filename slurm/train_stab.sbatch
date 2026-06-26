@@ -1,11 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=stab_%a
-#SBATCH --partition=a40
-#SBATCH --qos=a40
+#SBATCH --job-name=stab_w2v2_aaist_%a
+#SBATCH --partition=general
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=48:00:00
+#SBATCH --time=07:00:00
 #SBATCH --output=logs/stab_%a_%j.out
 #SBATCH --error=logs/stab_%a_%j.err
 #SBATCH --array=0-4
@@ -48,8 +47,9 @@ LAMBDA_STAB="${LAMBDAS[$SLURM_ARRAY_TASK_ID]}"
 MODEL="wav2vec2"
 BACKEND="aasist"
 INIT_WEIGHTS="models/wav2vec2_aasist_weighted.pth"
+RUN_ID="${MODEL}_${BACKEND}_lam${LAMBDA_STAB}_lc0.5_pipN_d123"
 
-PROJECT_DIR="/home/gopalpatil/22d0296/projects/signal-laundering-deepfake"
+PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 VENV_DIR="$PROJECT_DIR/.venv"
 CACHE_DIR="$PROJECT_DIR/data/ssl_cache"
 
@@ -57,10 +57,6 @@ cd "$PROJECT_DIR"
 mkdir -p logs "$CACHE_DIR"
 
 # ── Environment ───────────────────────────────────────────────────────────────
-source /lustre-flash/apps/spack/share/spack/setup-env.sh
-spack load anaconda3@2023.09-0
-eval "$(conda shell.bash hook)"
-
 if [ ! -f "$VENV_DIR/bin/activate" ]; then
     echo "ERROR: Missing venv at $VENV_DIR"
     exit 1
@@ -128,7 +124,9 @@ python train_stab.py \
     --num_layers    12 \
     --data_root     data/LA \
     --cache_dir     "$CACHE_DIR" \
-    --output_dir    outputs/stab_training
+    --output_dir    outputs/stab_training \
+    --run_id        "$RUN_ID" \
+    --resume
 
 echo "========================================================"
 echo "  Finished: $(date)"
