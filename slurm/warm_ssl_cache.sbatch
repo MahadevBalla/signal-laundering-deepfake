@@ -1,60 +1,49 @@
 #!/bin/bash
-#SBATCH --job-name=eval_stab_%a
+#SBATCH --job-name=warm_ssl_cache
 #SBATCH --partition=general
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=36:00:00
-#SBATCH --output=logs/eval_stab_%a_%j.out
-#SBATCH --error=logs/eval_stab_%a_%j.err
-#SBATCH --array=0-2
-
-set -euo pipefail
+#SBATCH --mem=48G
+#SBATCH --time=06:00:00
+#SBATCH --output=logs/warm_ssl_cache_%j.out
+#SBATCH --error=logs/warm_ssl_cache_%j.err
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Evaluate stability-trained wav2vec2+AASIST models over the full laundering
-# grid (N/M/P × L/M/H × k=0-3).
+# Warm the SSL embedding cache for all 27 precomputed laundered variants
+# (3 pipelines × 3 strengths × 3 depths) so that eval_stab.sbatch runs with
+# zero wav2vec2 transformer forward passes.
 #
-# Array index → lambda_stab:
-#   0 → 0.01
-#   1 → 0.10
-#   2 → 1.00
+# This job should be submitted AFTER precompute_laundering.sbatch completes.
+# Use SLURM job dependencies to enforce ordering:
 #
-# PRE-REQUISITES — run these jobs first and wait for completion:
-#   1. sbatch slurm/precompute_laundering.sbatch   (CPU: generates data/precomputed/)
-#   2. sbatch slurm/warm_ssl_cache.sbatch          (GPU: populates data/ssl_cache/)
-#
-# With --precomputed_root active, each array task:
-#   - Loads static audio from data/precomputed/ (no FFmpeg/SciPy laundering)
-#   - Hits the pre-warmed SSL cache for every laundered condition (no wav2vec2)
-#   - Runs only the tiny AASIST backend, reducing wall time from hours to minutes
-#
-# Recommended full dependency-chain submission:
+#   # Submit the full dependency chain in one go:
 #   PRECOMP=$(sbatch --parsable slurm/precompute_laundering.sbatch)
 #   WARM=$(sbatch --parsable --dependency=afterok:$PRECOMP slurm/warm_ssl_cache.sbatch)
 #   sbatch --dependency=afterok:$WARM slurm/eval_stab.sbatch
 #
-# Submit:
-#   sbatch slurm/eval_stab.sbatch
+# Manual submission (after verifying precomputed audio is present):
+#   sbatch slurm/warm_ssl_cache.sbatch
 #
-# Single lambda:
-#   sbatch --array=2 slurm/eval_stab.sbatch
+# What it does:
+#   Runs warm_ssl_cache.py, which loads each precomputed variant from
+#   data/precomputed/ through the frozen wav2vec2 frontend (all 12 layers)
+#   and writes per-utterance embeddings to:
+#       data/ssl_cache/wav2vec2/eval_{pipeline}_d{depth}_{strength}/<utt_id>.pt
+#
+# After this job completes, eval_stab.sbatch will:
+#   1. Load static audio from data/precomputed/  (no FFmpeg)
+#   2. Load SSL embeddings from data/ssl_cache/  (no wav2vec2)
+#   3. Push embeddings through the tiny AASIST backend only
 # ─────────────────────────────────────────────────────────────────────────────
 
-LAMBDAS=(0.01 0.10 1.00)
-LAMBDA_STAB="${LAMBDAS[$SLURM_ARRAY_TASK_ID]}"
+set -euo pipefail
 
-MODEL="wav2vec2_aasist"
-RUN_ID="wav2vec2_aasist_lam${LAMBDA_STAB}_lc0.5_pipN_d123"
+MODEL="wav2vec2"
 
 PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 VENV_DIR="$PROJECT_DIR/.venv"
-CACHE_DIR="$PROJECT_DIR/data/ssl_cache"
-
-CHECKPOINT="$PROJECT_DIR/outputs/stab_training/wav2vec2_aasist/${RUN_ID}/best_laund.pth"
-
 PRECOMPUTED_ROOT="$PROJECT_DIR/data/precomputed"
-OUTPUT_DIR="$PROJECT_DIR/outputs/eval_suite_stab/${RUN_ID}"
+CACHE_DIR="$PROJECT_DIR/data/ssl_cache"
 
 cd "$PROJECT_DIR"
 mkdir -p logs "$CACHE_DIR"
@@ -75,10 +64,10 @@ if [ ! -f "external/aasist/main.py" ]; then
     exit 1
 fi
 
-# ── Check checkpoint ──────────────────────────────────────────────────────────
-if [ ! -f "$CHECKPOINT" ]; then
-    echo "ERROR: checkpoint not found:"
-    echo "  $CHECKPOINT"
+# ── Verify precomputed audio exists ───────────────────────────────────────────
+if [ ! -d "$PRECOMPUTED_ROOT" ]; then
+    echo "ERROR: precomputed_root not found: $PRECOMPUTED_ROOT"
+    echo "Submit precompute_laundering.sbatch first and wait for it to complete."
     exit 1
 fi
 
@@ -95,30 +84,30 @@ export TOKENIZERS_PARALLELISM=false
 export PYTHONUNBUFFERED=1
 
 echo "========================================================"
-echo "  Job:        Stability Evaluation"
-echo "  Model:      $MODEL"
-echo "  lambda:     $LAMBDA_STAB"
-echo "  Checkpoint: $CHECKPOINT"
-echo "  Precomputed: $PRECOMPUTED_ROOT"
-echo "  GPU:        $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
-echo "  Node:       $(hostname)"
-echo "  Start:      $(date)"
+echo "  Job:             SSL Cache Warmer"
+echo "  Model:           $MODEL"
+echo "  Precomputed:     $PRECOMPUTED_ROOT"
+echo "  Cache output:    $CACHE_DIR/$MODEL/eval_{pipeline}_d{depth}_{strength}/"
+echo "  Variants:        N/M/P × L/M/H × d1/d2/d3 = 27 total"
+echo "  GPU:             $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
+echo "  Node:            $(hostname)"
+echo "  Start:           $(date)"
 echo "========================================================"
 
-python eval_suite.py \
-    --model "$MODEL" \
-    --weights "$CHECKPOINT" \
-    --output_dir "$OUTPUT_DIR" \
-    --data_root data/LA \
-    --pipelines N M P \
-    --strengths L M H \
-    --depths 0 1 2 3 \
-    --run_cka \
-    --cka_max_eval 1000 \
-    --cache_dir "$CACHE_DIR" \
-    --precomputed_root "$PRECOMPUTED_ROOT"
+python warm_ssl_cache.py \
+    --model              "$MODEL" \
+    --precomputed_root   "$PRECOMPUTED_ROOT" \
+    --cache_dir          "$CACHE_DIR" \
+    --pipelines          N M P \
+    --strengths          L M H \
+    --depths             1 2 3 \
+    --batch_size         8 \
+    --num_workers        "$SLURM_CPUS_PER_TASK"
 
 echo "========================================================"
 echo "  Finished: $(date)"
-echo "  Results:  $OUTPUT_DIR"
+echo "  Cache:    $CACHE_DIR/$MODEL/eval_*/"
+echo ""
+echo "  Next step — submit eval_stab.sbatch:"
+echo "    sbatch slurm/eval_stab.sbatch"
 echo "========================================================"

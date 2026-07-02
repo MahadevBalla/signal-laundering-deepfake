@@ -7,13 +7,23 @@ CKA/cosine representation analysis for SSL-based models.
 SSL frontend caching:
   For SSL models, clean (depth=0) and CKA-baseline frontend passes are
   cached on disk under --cache_dir (default data/ssl_cache) and reused
-  across runs. Laundered conditions always recompute (laundering changes
-  the input every call). Disable with --no_cache.
+  across runs.  Disable with --no_cache.
+
+  When --precomputed_root is provided, laundered conditions load static
+  waveforms from disk (produced by precompute_laundering.py) instead of
+  running the live LaunderingEngine.  Because the waveforms are static,
+  their SSL embeddings are also cached per-condition under:
+      data/ssl_cache/<model_type>/eval_{pipeline}_d{depth}_{strength}/
+  Run warm_ssl_cache.py once before the evaluation array to populate these
+  condition caches and eliminate all wav2vec2 forward passes at eval time.
+  The LaunderingEngine is still instantiated so CKA analysis (--run_cka)
+  can operate on live-laundered audio independently of this flag.
 
 Usage:
     python eval_suite.py --model aasist --dry_run
     python eval_suite.py --model wav2vec2 --run_cka
     python eval_suite.py --model hubert_aasist --pipelines N M --strengths M H --depths 0 1 2 3
+    python eval_suite.py --model wav2vec2_aasist --precomputed_root data/precomputed
 """
 
 from __future__ import annotations
@@ -90,9 +100,16 @@ def parse_args():
     p.add_argument("--cka_max_eval", type=int, default=1000)
     p.add_argument("--no_resume",   action="store_true")
     p.add_argument("--cache_dir",   default="data/ssl_cache",
-                   help="Directory for cached frozen-SSL embeddings (SSL models only, clean passes).")
+                   help="Directory for cached frozen-SSL embeddings (SSL models only).")
     p.add_argument("--no_cache",    action="store_true",
                    help="Disable SSL embedding caching (SSL models only).")
+    p.add_argument("--precomputed_root", default=None,
+                   help="Root directory of precomputed laundered audio produced by "
+                        "precompute_laundering.py (e.g. data/precomputed).  When set, "
+                        "laundered conditions bypass LaunderingEngine and load static "
+                        "waveforms from disk.  SSL embeddings for each condition are "
+                        "cached separately under --cache_dir.  CKA (--run_cka) always "
+                        "uses live laundering regardless of this flag.")
     return p.parse_args()
 
 
@@ -135,12 +152,40 @@ def read_model_results(csv_path, model):
         return [r for r in csv.DictReader(f) if r["model"] == model]
 
 
-def evaluate_condition(model, engine, pipeline, strength, depth, cond_outdir, max_eval, log):
-    """Evaluate one (pipeline, strength, depth) condition and return a result row."""
-    launder_fn = engine.get_batch_fn(pipeline, depth, strength) if depth > 0 else None
+def evaluate_condition(
+    model, engine, pipeline, strength, depth, cond_outdir, max_eval, log,
+    precomputed_root=None,
+):
+    """Evaluate one (pipeline, strength, depth) condition and return a result row.
+
+    When ``precomputed_root`` is set and ``depth > 0``, the evaluation loads
+    static waveforms from ``precomputed_root/<pipeline>_d<depth>_<strength>/``
+    instead of applying a live ``launder_fn``.  ``depth == 0`` (clean baseline)
+    always uses the standard path regardless of this flag.
+    """
     label = "clean" if depth == 0 else f"{pipeline}_{strength}_k{depth}"
     t0 = time.time()
-    eer, tdcf = model.evaluate(output_dir=str(cond_outdir), launder_fn=launder_fn, max_eval=max_eval)
+
+    if depth > 0 and precomputed_root is not None:
+        # Fast path: static precomputed audio + condition-specific SSL cache.
+        eer, tdcf = model.evaluate(
+            output_dir=str(cond_outdir),
+            precomputed_root=precomputed_root,
+            pipeline=pipeline,
+            depth=depth,
+            strength=strength,
+            max_eval=max_eval,
+        )
+    else:
+        # Standard path: clean baseline, or live laundering (non-SSL models /
+        # models without precomputed_root support).
+        launder_fn = engine.get_batch_fn(pipeline, depth, strength) if depth > 0 else None
+        eer, tdcf = model.evaluate(
+            output_dir=str(cond_outdir),
+            launder_fn=launder_fn,
+            max_eval=max_eval,
+        )
+
     elapsed = time.time() - t0
     result_obj = getattr(model, "_last_eval_result", None)
     cfg = getattr(model, "config", None)
@@ -683,10 +728,23 @@ def main():
         model_kwargs["cache_dir"] = args.cache_dir
         model_kwargs["use_cache"] = not args.no_cache
         if not args.no_cache:
-            log.info(f"[CACHE] {args.cache_dir}/{args.model.split('_')[0]}/eval (clean conditions + CKA baseline only)")
+            ssl_base = args.model.split('_')[0]
+            if args.precomputed_root:
+                log.info(
+                    f"[CACHE] {args.cache_dir}/{ssl_base}/eval (clean + CKA baseline); "
+                    f"laundered conditions → {args.cache_dir}/{ssl_base}/eval_<pipeline>_d<depth>_<strength>"
+                )
+            else:
+                log.info(f"[CACHE] {args.cache_dir}/{ssl_base}/eval (clean conditions + CKA baseline only)")
+
+    if args.precomputed_root:
+        log.info(f"[PRECOMPUTED] Loading laundered audio from: {args.precomputed_root}")
+        log.info("[PRECOMPUTED] LaunderingEngine still active for --run_cka analysis.")
 
     model = get_model(args.model, **model_kwargs)
     model.load_weights(weights_path)
+    # LaunderingEngine is always instantiated: it is used by CKA (--run_cka)
+    # regardless of whether --precomputed_root is active for the EER loop.
     engine = LaunderingEngine(args.config_dir)
 
     clean_key = _condition_key("clean", "-", 0)
@@ -694,7 +752,10 @@ def main():
         log.info("[EVAL] Clean baseline")
         cond_dir = output_dir / "clean" / "k0"
         cond_dir.mkdir(parents=True, exist_ok=True)
-        row = evaluate_condition(model, engine, "clean", "-", 0, cond_dir, max_eval, log)
+        row = evaluate_condition(
+            model, engine, "clean", "-", 0, cond_dir, max_eval, log,
+            precomputed_root=None,  # clean baseline never uses precomputed path
+        )
         row["model"] = args.model
         append_result(master_csv, row)
     else:
@@ -712,7 +773,10 @@ def main():
                 log.info(f"[EVAL] {pipeline} {strength} k={depth}")
                 cond_dir = output_dir / pipeline / strength / f"k{depth}"
                 cond_dir.mkdir(parents=True, exist_ok=True)
-                row = evaluate_condition(model, engine, pipeline, strength, depth, cond_dir, max_eval, log)
+                row = evaluate_condition(
+                    model, engine, pipeline, strength, depth, cond_dir, max_eval, log,
+                    precomputed_root=args.precomputed_root,
+                )
                 row["model"] = args.model
                 append_result(master_csv, row)
 
