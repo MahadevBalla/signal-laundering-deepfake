@@ -72,6 +72,12 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", module="transformers")
 warnings.filterwarnings("ignore", module="huggingface_hub")
 
+import torch
+# Let cuDNN benchmark and auto-select the fastest convolution algorithm for
+# each fixed input shape.  This benefits the AASIST backend and any other
+# Conv1d/Conv2d layers encountered during inference.
+torch.backends.cudnn.benchmark = True
+
 AASIST_ROOT = Path(__file__).resolve().parent / "external" / "aasist"
 if str(AASIST_ROOT) not in sys.path:
     sys.path.insert(0, str(AASIST_ROOT))

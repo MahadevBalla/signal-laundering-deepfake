@@ -326,12 +326,13 @@ class SSLEvalWrapper:
         fname_list, score_list, src_list, key_list = [], [], [], []
         self.backend.eval()
         with torch.inference_mode():
-            for batch_x, utt_ids, srcs, keys in tqdm(loader, desc=f"{self.config['model_type']}|{self._tag()}"):
-                batch_x = batch_x.to(self.device, non_blocking=True)
-                layer_states = self._frontend_forward(batch_x, utt_ids, use_cache_path)
-                scores = self._forward(layer_states)[:, 0].cpu().numpy()
-                fname_list.extend(utt_ids); score_list.extend(scores.tolist())
-                src_list.extend(srcs); key_list.extend(keys)
+            with torch.amp.autocast('cuda', dtype=torch.float16):
+                for batch_x, utt_ids, srcs, keys in tqdm(loader, desc=f"{self.config['model_type']}|{self._tag()}"):
+                    batch_x = batch_x.to(self.device, non_blocking=True)
+                    layer_states = self._frontend_forward(batch_x, utt_ids, use_cache_path)
+                    scores = self._forward(layer_states)[:, 0].cpu().numpy()
+                    fname_list.extend(utt_ids); score_list.extend(scores.tolist())
+                    src_list.extend(srcs); key_list.extend(keys)
 
         if use_cache_path and self.use_cache and self.frontend.cache is not None:
             stats = self.frontend.cache.stats()
@@ -372,11 +373,12 @@ class SSLEvalWrapper:
         else:
             self._swap_frontend_cache(None)
         with torch.inference_mode():
-            for batch_x, utt_ids, *_ in tqdm(loader, desc="Extracting embeddings"):
-                batch_x = batch_x.to(self.device, non_blocking=True)
-                layer_states = self._frontend_forward(batch_x, utt_ids, use_cache_path)
-                for l, emb in self.frontend.mean_pool(layer_states).items():
-                    all_embs[l].append(emb.cpu().numpy())
+            with torch.amp.autocast('cuda', dtype=torch.float16):
+                for batch_x, utt_ids, *_ in tqdm(loader, desc="Extracting embeddings"):
+                    batch_x = batch_x.to(self.device, non_blocking=True)
+                    layer_states = self._frontend_forward(batch_x, utt_ids, use_cache_path)
+                    for l, emb in self.frontend.mean_pool(layer_states).items():
+                        all_embs[l].append(emb.cpu().numpy())
         if use_cache_path and self.use_cache and self.frontend.cache is not None:
             stats = self.frontend.cache.stats()
             print(f"  [CACHE] extract_all_layers hits={stats['hits']} misses={stats['misses']}")

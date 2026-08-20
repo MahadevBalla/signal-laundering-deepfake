@@ -3,45 +3,44 @@
 #SBATCH --partition=general
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --time=36:00:00
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/eval_stab_%a_%j.out
 #SBATCH --error=logs/eval_stab_%a_%j.err
-#SBATCH --array=0-2
+#SBATCH --array=0-4
 
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Evaluate stability-trained wav2vec2+AASIST models over the full laundering
-# grid (N/M/P × L/M/H × k=0-3).
+# grid (N/M/P × L/M/H × k=0-3) in on-the-fly mode (no precomputed cache).
 #
 # Array index → lambda_stab:
 #   0 → 0.01
-#   1 → 0.10
-#   2 → 1.00
+#   1 → 0.05
+#   2 → 0.10
+#   3 → 0.50
+#   4 → 1.00
 #
-# PRE-REQUISITES — run these jobs first and wait for completion:
-#   1. sbatch slurm/precompute_laundering.sbatch   (CPU: generates data/precomputed/)
-#   2. sbatch slurm/warm_ssl_cache.sbatch          (GPU: populates data/ssl_cache/)
+# ON-THE-FLY MODE (no --precomputed_root):
+#   DataLoader workers launder audio on the CPU in parallel while the GPU
+#   runs inference.  Key settings preventing GPU idle:
+#     - 6 DataLoader workers (out of 8 allocated CPUs)
+#     - pin_memory + persistent_workers + prefetch_factor already set in
+#       ssl_eval_wrapper.py
+#     - OMP/MKL/OPENBLAS/VECLIB/NUMEXPR all pinned to 1 thread so worker
+#       processes do not contend for CPU cores
+#     - torch.amp.autocast FP16 inference (set in ssl_eval_wrapper.py)
+#     - torch.backends.cudnn.benchmark (set in eval_suite.py)
 #
-# With --precomputed_root active, each array task:
-#   - Loads static audio from data/precomputed/ (no FFmpeg/SciPy laundering)
-#   - Hits the pre-warmed SSL cache for every laundered condition (no wav2vec2)
-#   - Runs only the tiny AASIST backend, reducing wall time from hours to minutes
-#
-# Recommended full dependency-chain submission:
-#   PRECOMP=$(sbatch --parsable slurm/precompute_laundering.sbatch)
-#   WARM=$(sbatch --parsable --dependency=afterok:$PRECOMP slurm/warm_ssl_cache.sbatch)
-#   sbatch --dependency=afterok:$WARM slurm/eval_stab.sbatch
-#
-# Submit:
+# Submit all lambdas:
 #   sbatch slurm/eval_stab.sbatch
 #
 # Single lambda:
 #   sbatch --array=2 slurm/eval_stab.sbatch
 # ─────────────────────────────────────────────────────────────────────────────
 
-LAMBDAS=(0.01 0.10 1.00)
+LAMBDAS=(0.01 0.05 0.10 0.50 1.00)
 LAMBDA_STAB="${LAMBDAS[$SLURM_ARRAY_TASK_ID]}"
 
 MODEL="wav2vec2_aasist"
@@ -49,15 +48,11 @@ RUN_ID="wav2vec2_aasist_lam${LAMBDA_STAB}_lc0.5_pipN_d123"
 
 PROJECT_DIR="/home/mahadevballa23/scratch_space/signal-laundering-deepfake"
 VENV_DIR="$PROJECT_DIR/.venv"
-CACHE_DIR="$PROJECT_DIR/data/ssl_cache"
-
 CHECKPOINT="$PROJECT_DIR/outputs/stab_training/wav2vec2_aasist/${RUN_ID}/best_laund.pth"
-
-PRECOMPUTED_ROOT="$PROJECT_DIR/data/precomputed"
 OUTPUT_DIR="$PROJECT_DIR/outputs/eval_suite_stab/${RUN_ID}"
 
 cd "$PROJECT_DIR"
-mkdir -p logs "$CACHE_DIR"
+mkdir -p logs "$OUTPUT_DIR"
 
 # ── Environment ───────────────────────────────────────────────────────────────
 if [ ! -f "$VENV_DIR/bin/activate" ]; then
@@ -88,23 +83,30 @@ export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 mkdir -p "$HF_HOME"
 
-# ── Thread settings ───────────────────────────────────────────────────────────
+# ── CPU / Worker Tuning ───────────────────────────────────────────────────────
+# Pin every threading library to 1 thread per DataLoader worker process.
+# Without this, each of the 6 workers spawns NumPy/SciPy sub-threads that
+# compete for the same 8 allocated CPUs and degrade laundering throughput.
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export VECLIB_MAXIMUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 export PYTHONUNBUFFERED=1
 
 echo "========================================================"
-echo "  Job:        Stability Evaluation"
+echo "  Job:        Stability Evaluation (on-the-fly mode)"
 echo "  Model:      $MODEL"
 echo "  lambda:     $LAMBDA_STAB"
 echo "  Checkpoint: $CHECKPOINT"
-echo "  Precomputed: $PRECOMPUTED_ROOT"
+echo "  Output:     $OUTPUT_DIR"
 echo "  GPU:        $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo N/A)"
 echo "  Node:       $(hostname)"
 echo "  Start:      $(date)"
 echo "========================================================"
 
+# ── Run Evaluation (Zero Cache / On-the-Fly) ──────────────────────────────────
 python eval_suite.py \
     --model "$MODEL" \
     --weights "$CHECKPOINT" \
@@ -114,9 +116,7 @@ python eval_suite.py \
     --strengths L M H \
     --depths 0 1 2 3 \
     --run_cka \
-    --cka_max_eval 1000 \
-    --cache_dir "$CACHE_DIR" \
-    --precomputed_root "$PRECOMPUTED_ROOT"
+    --cka_max_eval 1000
 
 echo "========================================================"
 echo "  Finished: $(date)"
