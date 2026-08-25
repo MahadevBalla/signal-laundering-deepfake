@@ -2,7 +2,7 @@
 #SBATCH --job-name=eval_stab_%a
 #SBATCH --partition=general
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/eval_stab_%a_%j.out
@@ -85,8 +85,10 @@ mkdir -p "$HF_HOME"
 
 # ── CPU / Worker Tuning ───────────────────────────────────────────────────────
 # Pin every threading library to 1 thread per DataLoader worker process.
-# Without this, each of the 6 workers spawns NumPy/SciPy sub-threads that
-# compete for the same 8 allocated CPUs and degrade laundering throughput.
+# Without this, workers spawn NumPy/SciPy sub-threads that compete for the
+# same allocated CPUs and degrade laundering throughput. num_workers is now
+# derived at runtime from the SLURM-granted CPU affinity (see
+# ssl_eval_wrapper.py), not hardcoded.
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1

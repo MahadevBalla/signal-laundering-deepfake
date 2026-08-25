@@ -25,6 +25,7 @@ SSL frontend caching:
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Callable, Optional
@@ -158,6 +159,9 @@ class SSLEvalWrapper:
         self.backend_type = backend_type
         self.layer = layer
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Leave 1-2 cores for the main process / OS instead of hardcoding a
+        # worker count that silently ignores whatever SLURM actually granted.
+        self.num_workers = max(1, len(os.sched_getaffinity(0)) - 2)
 
         embed_dim = self.config.get("embed_dim", 768)
         num_layers = len(self.config.get("extract_layers", list(range(12))))
@@ -317,7 +321,7 @@ class SSLEvalWrapper:
             dataset,
             batch_size=self.config.get("batch_size", 32),
             shuffle=False,
-            num_workers=8,
+            num_workers=self.num_workers,
             pin_memory=(self.device == "cuda"),
             persistent_workers=True,
             prefetch_factor=4,
@@ -361,7 +365,7 @@ class SSLEvalWrapper:
             dataset.trials = dataset.trials[:max_eval]
         loader = DataLoader(_LaunderedDataset(dataset, launder_fn),
                             batch_size=self.config.get("batch_size", 32),
-                            shuffle=False, num_workers=8,
+                            shuffle=False, num_workers=self.num_workers,
                             pin_memory=(self.device == "cuda"),
                             persistent_workers=True, prefetch_factor=4)
         all_embs = {l: [] for l in all_layers}

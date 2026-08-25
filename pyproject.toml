@@ -19,4 +19,5 @@ dependencies = [
     "transformers==4.38.*",
     "pyroomacoustics==0.10.*",
     "imageio-ffmpeg==0.6.*",
+    "av==13.*",
 ]

@@ -1,11 +1,11 @@
 """Shared audio utility functions used by laundering pipelines."""
 
+import io
 import os
 import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
+import av
 import numpy as np
 import soundfile as sf
 from scipy.io import loadmat
@@ -13,45 +13,59 @@ from scipy.signal import resample_poly
 
 SR = 16000
 
-_CODEC_EXT = {
+_CONTAINER_FMT = {
     "libopus": "ogg",
     "libmp3lame": "mp3",
-    "aac": "aac",
+    "aac": "adts",
 }
 
 
 def ffmpeg_roundtrip(wav: np.ndarray, sr: int, codec: str, bitrate: int) -> np.ndarray:
-    """Encode and decode audio with ffmpeg, then restore original length."""
-    ext = _CODEC_EXT[codec]
-    ffmpeg_exe = _resolve_ffmpeg_exe()
-    with tempfile.TemporaryDirectory() as tmp:
-        src = Path(tmp) / "in.wav"
-        enc = Path(tmp) / f"enc.{ext}"
-        dst = Path(tmp) / "out.wav"
+    """Encode and decode audio in-memory via PyAV, then restore original length.
 
-        sf.write(str(src), wav, sr, subtype="PCM_16")
-        subprocess.run(
-            [
-                ffmpeg_exe,
-                "-y",
-                "-i",
-                str(src),
-                "-c:a",
-                codec,
-                "-b:a",
-                str(bitrate),
-                str(enc),
-            ],
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            [ffmpeg_exe, "-y", "-i", str(enc), "-ar", str(sr), "-ac", "1", str(dst)],
-            capture_output=True,
-            check=True,
-        )
-        out, _ = sf.read(str(dst), dtype="float32")
+    Replaces the old subprocess+tempfile ffmpeg CLI round-trip. Same codecs,
+    same lossy artifacts, but no process spawn and no disk I/O — this was the
+    dominant cost keeping the GPU starved during on-the-fly laundering.
+    """
+    container_fmt = _CONTAINER_FMT[codec]
 
+    # ---- Encode ----
+    enc_buf = io.BytesIO()
+    out_container = av.open(enc_buf, mode="w", format=container_fmt)
+    stream = out_container.add_stream(codec, rate=sr)
+    stream.bit_rate = bitrate
+    stream.codec_context.layout = "mono"
+
+    frame = av.AudioFrame.from_ndarray(
+        wav.reshape(1, -1).astype(np.float32), format="fltp", layout="mono"
+    )
+    frame.sample_rate = sr
+
+    for packet in stream.encode(frame):
+        out_container.mux(packet)
+    for packet in stream.encode(None):  # flush encoder
+        out_container.mux(packet)
+    out_container.close()
+    enc_buf.seek(0)
+
+    # ---- Decode ----
+    in_container = av.open(enc_buf, mode="r")
+    in_stream = in_container.streams.audio[0]
+    resampler = av.AudioResampler(format="fltp", layout="mono", rate=sr)
+
+    chunks = []
+    for frame in in_container.decode(in_stream):
+        for rframe in resampler.resample(frame):
+            chunks.append(rframe.to_ndarray())
+    for rframe in resampler.resample(None):  # flush resampler
+        chunks.append(rframe.to_ndarray())
+    in_container.close()
+
+    out = (
+        np.concatenate(chunks, axis=1).reshape(-1).astype(np.float32)
+        if chunks
+        else np.zeros_like(wav)
+    )
     return _match_length(out, len(wav))
 
 
